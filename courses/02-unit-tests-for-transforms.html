@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- social:start -->
+<meta name="description" content="Session 2 of 6. Unit tests for data transforms with pytest: arrange, act, assert on three fake trips, fixtures and parametrize, pure functions against IO, and four tests for a trip cleaner that catch seven of twelve bugs.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Learn with Phoebe">
+<meta property="og:title" content="Unit tests for transforms - learn testing data ml code with phoebe">
+<meta property="og:description" content="Session 2 of 6. pytest, fixtures, parametrize and small fake data: four unit tests, seven bugs caught, five that still ship.">
+<meta property="og:url" content="https://phoebefu6.github.io/learn-testing-data-ml-code-with-phoebe/courses/02-unit-tests-for-transforms.html">
+<meta property="og:image" content="https://phoebefu6.github.io/learn-testing-data-ml-code-with-phoebe/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Unit tests for transforms - learn testing data ml code with phoebe">
+<meta name="twitter:description" content="Session 2 of 6. Three fake rows, one assert, and the bugs a unit test can and cannot see.">
+<meta name="twitter:image" content="https://phoebefu6.github.io/learn-testing-data-ml-code-with-phoebe/assets/og-cover.png">
+<!-- social:end -->
+<title>Session 2 · Unit tests for transforms - learn testing data ml code with phoebe</title>
+<link rel="stylesheet" href="../assets/style.css?v=1">
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="wrap">
+    <span class="crumb"><a href="../index.html">learn-testing-data-ml-code-with-phoebe</a> / Session 2 of 6</span>
+    <button class="btn" id="toggle-all" type="button">Expand all</button>
+    <button class="btn primary" id="zoom-toggle" type="button">Projector zoom: off</button>
+  </div>
+</div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="eyebrow">Learn Testing Data &amp; ML Code with Phoebe · Session 2 of 6</div>
+    <h1>Unit tests for <span class="accent">transforms</span></h1>
+    <p class="sub">A unit test calls one function on a few rows you wrote by hand and checks the answer. That sounds too small to matter for a pipeline that eats a whole month of trips, until you notice that seven of the twelve quiet bugs from session 1 live inside four small functions. Tonight we write those four tests with pytest, fixtures, parametrize and three fake distances, pull the logic away from the files so testing it stays cheap, and say plainly which five bugs no unit test will ever see.</p>
+    <div class="chip-row">
+      <span class="chip level">🟢 Foundations</span>
+      <span class="chip audience">Data, analytics and ML engineers who write pandas</span>
+      <span class="chip audience">Read and edit the tests in the page: no install</span>
+      <span class="chip time">45 min</span>
+    </div>
+    <div class="agenda">
+      <span class="a1" style="flex:1">0-3 · Welcome</span>
+      <span class="a2" style="flex:4">3-18 · Test anatomy, fixtures, pure vs IO</span>
+      <span class="a3" style="flex:5">18-40 · Build-along: four tests for the cleaner</span>
+      <span class="a4" style="flex:1">40-45 · Q&amp;A</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="section" id="intro">
+    <div class="section-kicker">
+      <span class="klabel">Part 0</span>
+      <h2>Where we start</h2>
+    </div>
+    <p class="lede">Session 1 ended with Wrenfold's bug inventory: twelve ways its pipeline can be wrong while every job stays green (Constructed Wrenfold example; the trips it processes are real HSL Helsinki trips from May 2021, CC BY 4.0). Tonight we take the bottom layer of the pyramid, the cheapest one. A unit test never touches those real trips. It feeds a function three or four rows you invented on purpose, each one chosen to walk down a path where a bug could hide, and it reads exactly one thing back. That is its strength and its limit, and by the end of the hour you will know both by name.</p>
+
+    <div class="legend">
+      <span class="pill">🎫 Clear all three quiz questions to stamp your passport</span>
+      <span class="pill">Live = presented in the 45 minutes</span>
+      <span class="pill">Self-study = the full depth, after class</span>
+      <span class="pill">★ Build-along = do it yourself, in the page</span>
+    </div>
+
+    <div class="callout win">
+      <p><strong>★ What you walk out with tonight.</strong> Page two of Wrenfold's test plan: four pytest unit tests, u_distance, u_bucket, u_aggregate and u_parity, each with the bug it exists to fail on written next to it, and your prediction of the five bugs all four will miss. Session 4 runs them on the bench and scores the prediction.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-1">
+    <div class="section-kicker">
+      <span class="klabel">Part 1 · covers pytest test anatomy</span>
+      <h2>Arrange, act, assert on three fake trips</h2>
+      <span class="tag concept">5 min live</span>
+    </div>
+    <p class="lede">Every useful unit test has the same three moves. Arrange the inputs, act by calling the one function under test, assert on what came back. The craft is almost entirely in the first move: which rows do you write? For Wrenfold's distance cleaner (Constructed Wrenfold example), three hand-written distances are enough to fail on two of the twelve bugs, because each one takes a different path through the code.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 358" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="One unit test as a mechanism. Arrange: three hand-written distances, 2043 metres, 0 metres and 60000 metres. Act: each goes through dist_km, which divides by 1000 and returns None for 0 or over 50000 metres. Assert: the output is compared with 2.043, None, None, and correct code passes. Below, two wrong versions of the code: the km and miles bug divides by 1609.344 and returns 1.269 for the first row, so the assert fails; the null coercion bug returns 0.0 for the two missing rows, so the assert fails.">
+        <defs>
+          <filter id="s2aSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="52" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="s2aHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#804F00" stroke-width="1" opacity=".5"/></pattern>
+          <marker id="s2aAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A1F12" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .s2aH { font: 800 12px Inter, sans-serif; fill: #2A1F12; }
+          .s2aL { font: 600 11px Inter, sans-serif; fill: #2A1F12; }
+          .s2aS { font: 400 11px Inter, sans-serif; fill: #5E5243; }
+          .s2aB { font: 800 11px Inter, sans-serif; fill: #0B5A50; }
+          .s2aA { font: 700 11px Inter, sans-serif; fill: #804F00; }
+          .s2aR { font: 800 11px Inter, sans-serif; fill: #991B1B; }
+          .s2aC { font: 700 11px ui-monospace, Menlo, monospace; fill: #2A1F12; }
+          .s2aN { font: 400 12px Inter, sans-serif; fill: #5E5243; }
+        </style>
+
+        <text class="s2aA" x="30" y="30">ONE UNIT TEST, THREE MOVES</text>
+        <text class="s2aS" x="220" y="30">Constructed Wrenfold example; the rows are written by hand</text>
+
+        <g filter="url(#s2aSk)" fill="none" stroke="#2A1F12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="30" y="100" width="180" height="30" rx="8" transform="rotate(-1.5 120 115)" fill="url(#s2aHc)"/>
+          <rect x="30" y="140" width="180" height="30" rx="8" transform="rotate(1.2 120 155)" fill="url(#s2aHc)"/>
+          <rect x="30" y="180" width="180" height="30" rx="8" transform="rotate(-1 120 195)" fill="url(#s2aHc)"/>
+          <path d="M214 115 L284 140" marker-end="url(#s2aAr)"/>
+          <path d="M214 155 L284 155" marker-end="url(#s2aAr)"/>
+          <path d="M214 195 L284 170" marker-end="url(#s2aAr)"/>
+          <rect x="290" y="112" width="200" height="80" rx="12" transform="rotate(-0.6 390 152)" fill="#7DD3C6"/>
+          <path d="M494 152 L564 152" marker-end="url(#s2aAr)"/>
+          <rect x="570" y="92" width="280" height="118" rx="12" transform="rotate(0.5 710 151)" fill="#FFFFFF"/>
+          <circle cx="826" cy="62" r="8"/>
+          <path d="M832 68 L842 78"/>
+          <rect x="30" y="244" width="400" height="74" rx="12" transform="rotate(-0.4 230 281)" fill="#FEF2F2" stroke="#991B1B"/>
+          <rect x="450" y="244" width="400" height="74" rx="12" transform="rotate(0.4 650 281)" fill="#FEF2F2" stroke="#991B1B"/>
+        </g>
+
+        <text class="s2aH" x="30" y="72">Arrange</text>
+        <text class="s2aS" x="30" y="88">three distances you wrote</text>
+        <text class="s2aC" x="42" y="119">2043 m</text>
+        <text class="s2aS" x="104" y="119">ordinary trip</text>
+        <text class="s2aC" x="42" y="159">0 m</text>
+        <text class="s2aS" x="104" y="159">missing</text>
+        <text class="s2aC" x="42" y="199">60000 m</text>
+        <text class="s2aS" x="104" y="199">over 50 km</text>
+
+        <text class="s2aH" x="290" y="96">Act</text>
+        <text class="s2aC" x="306" y="146">dist_km(m)</text>
+        <text class="s2aL" x="306" y="166">km = m / 1000, else None</text>
+
+        <text class="s2aH" x="570" y="80">Assert</text>
+        <text class="s2aC" x="584" y="120">assert out == [2.043, None, None]</text>
+        <text class="s2aS" x="584" y="146">correct code returns</text>
+        <text class="s2aC" x="584" y="166">[2.043, None, None]</text>
+        <text class="s2aB" x="584" y="194">pass</text>
+
+        <text class="s2aA" x="30" y="234">IF THE CODE WERE WRONG, WHAT THE ASSERT WOULD READ</text>
+
+        <text class="s2aR" x="46" y="268">km / miles bug: m / 1609.344</text>
+        <text class="s2aC" x="46" y="288">[1.269..., None, None]</text>
+        <text class="s2aS" x="46" y="306">1.269... is not 2.043: the test fails</text>
+
+        <text class="s2aR" x="466" y="268">null coercion bug: missing becomes 0.0</text>
+        <text class="s2aC" x="466" y="288">[2.043, 0.0, 0.0]</text>
+        <text class="s2aS" x="466" y="306">0.0 is not None: the test fails</text>
+
+        <text class="s2aN" x="30" y="342">The test sees dist_km and three rows, nothing else: not the file, not the join, not the model.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - each fake row walks one path through the function, so each bug on that path changes what the assert reads</figcaption>
+    </figure>
+
+    <details class="card" open>
+      <summary><span class="mode live">Live</span>Arrange, act, assert<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>pytest's own documentation labels the steps of its examples with exactly these comments, and the habit is worth copying even in a three-line test. It forces you to say what the inputs are before you say what you expect.</p>
+        <div class="prompt-box good"><span class="label">★ The shape of every unit test (Constructed Wrenfold example)</span>def test_distance():
+    # Arrange: one ordinary trip, one zero, one over 50 km
+    metres = [2043, 0, 60000]
+    # Act: call the one function under test
+    out = [dist_km(m) for m in metres]
+    # Assert: compare with the answer you worked out by hand
+    assert out == [2.043, None, None]</div>
+        <p><strong>Arrange is where the thinking happens.</strong> 2043 m is a normal trip: it proves the division is by 1000. 0 m and 60000 m are the two ways Wrenfold's cleaner treats a distance as missing: zero, and over 50,000 m. Leave either out and the test still passes on correct code, but it can no longer fail on the null coercion bug, because no fake row ever walks down that path.</p>
+        <p><strong>Assert on the exact answer you worked out by hand.</strong> Not "is a float", not "is positive". A loose assert lets 1.269 through as happily as 2.043.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>What a unit test can see: only the function it calls, on the rows you wrote<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>A unit test's field of view is two things wide: the code inside the function it calls, and the rows you handed it. Inside that field it is precise, fast and cheap: the bench prices each unit test at 1 modelled unit, the lowest of any test type. Outside it, a unit test is blind.</p>
+        <p>That blindness is not a flaw to fix with bigger fixtures. It is the definition. The HSL file with every row twice, a station table that is six months out of date, a model fitted on the days it is scored on: none of these is a wrong line inside <code>dist_km</code>, so no fake row passed to <code>dist_km</code> can reveal them. Those bugs belong to the data checks of session 3. Keep the two jobs separate and each test stays small enough to read.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>Test the plumbing apart from the learning.</strong> Rule #5 of Martin Zinkevich's Rules of Machine Learning is "Test the infrastructure independently from the machine learning." It sits next to Rule #4, "Keep the first model simple and get the infrastructure right." Unit tests on transforms are the cheapest way to follow it: a distance cleaner or an hour bucketer has a right answer you can work out on paper, with no model in sight.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-2">
+    <div class="section-kicker">
+      <span class="klabel">Part 2 · covers fixtures, scopes, yield teardown, parametrize, pytest.param marks</span>
+      <h2>Fixtures and parametrize</h2>
+      <span class="tag concept">6 min live</span>
+    </div>
+    <p class="lede">Two pytest features carry most of the weight in data tests. A fixture hands the same small set of rows to every test that asks for it, so the rows are written once and named. Parametrize turns one test function into many cases, so the edge values you care about each get their own line in the report. Wrenfold's bucketing and aggregation tests use one each (Constructed Wrenfold example).</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 340" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Left: a fixture function one_trip returns one trip from station 001 to 002 at hour 5. An arrow labelled pytest matches the argument name leads to test_aggregate, which declares one_trip as an argument and gets a fresh copy for every test. Right: a parametrize decorator on test_bucket fans out into four test cases: 0 seconds gives hour 0, 3599 seconds gives 0, 3600 seconds gives 1, and 2678245 seconds, which is 31 May 23:57:25, gives 743.">
+        <defs>
+          <filter id="s2bSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="64" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="s2bAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A1F12" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .s2bH { font: 800 12px Inter, sans-serif; fill: #2A1F12; }
+          .s2bS { font: 400 11px Inter, sans-serif; fill: #5E5243; }
+          .s2bB { font: 800 11px Inter, sans-serif; fill: #0B5A50; }
+          .s2bA { font: 700 11px Inter, sans-serif; fill: #804F00; }
+          .s2bC { font: 700 11px ui-monospace, Menlo, monospace; fill: #2A1F12; }
+          .s2bN { font: 400 12px Inter, sans-serif; fill: #5E5243; }
+        </style>
+
+        <text class="s2bA" x="30" y="48">FIXTURE: ROWS A TEST ASKS FOR BY NAME</text>
+        <text class="s2bA" x="420" y="48">PARAMETRIZE: ONE FUNCTION, FOUR CASES</text>
+
+        <g filter="url(#s2bSk)" fill="none" stroke="#2A1F12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="30" y="60" width="350" height="78" rx="12" transform="rotate(-0.5 205 99)" fill="#FFFFFF"/>
+          <path d="M120 142 L120 176" marker-end="url(#s2bAr)"/>
+          <rect x="30" y="180" width="350" height="60" rx="12" transform="rotate(0.5 205 210)" fill="#FBF3E4"/>
+          <path d="M386 32 L392 44 L404 46 L392 50 L386 62 L382 50 L370 46 L382 44 Z"/>
+          <rect x="420" y="60" width="430" height="78" rx="12" transform="rotate(0.4 635 99)" fill="#7DD3C6"/>
+          <path d="M635 142 L472 176" marker-end="url(#s2bAr)"/>
+          <path d="M635 142 L582 176" marker-end="url(#s2bAr)"/>
+          <path d="M635 142 L692 176" marker-end="url(#s2bAr)"/>
+          <path d="M635 142 L802 176" marker-end="url(#s2bAr)"/>
+          <rect x="420" y="180" width="100" height="62" rx="10" transform="rotate(-2 470 211)" fill="#FFFFFF"/>
+          <rect x="530" y="180" width="100" height="62" rx="10" transform="rotate(1.5 580 211)" fill="#FFFFFF"/>
+          <rect x="640" y="180" width="100" height="62" rx="10" transform="rotate(-1.5 690 211)" fill="#FFFFFF"/>
+          <rect x="750" y="180" width="100" height="62" rx="10" transform="rotate(2 800 211)" fill="#FFFFFF"/>
+        </g>
+
+        <text class="s2bC" x="44" y="84">@pytest.fixture</text>
+        <text class="s2bC" x="44" y="102">def one_trip():</text>
+        <text class="s2bC" x="44" y="120">  return [{"s":"001","r":"002","hour":5}]</text>
+
+        <text class="s2bB" x="134" y="164">pytest matches the argument name</text>
+
+        <text class="s2bC" x="44" y="206">def test_aggregate(one_trip):</text>
+        <text class="s2bS" x="44" y="226">a fresh copy for every test: scope "function"</text>
+
+        <text class="s2bS" x="30" y="266">yield instead of return: code after the yield</text>
+        <text class="s2bS" x="30" y="282">runs as teardown once the test is done</text>
+
+        <text class="s2bC" x="434" y="84">@pytest.mark.parametrize("sec,expected", ...)</text>
+        <text class="s2bC" x="434" y="102">def test_bucket(sec, expected):</text>
+        <text class="s2bC" x="434" y="120">  assert hour_bucket(sec) == expected</text>
+
+        <text class="s2bC" x="432" y="204">0 s</text>
+        <text class="s2bC" x="432" y="222">-&gt; 0</text>
+        <text class="s2bB" x="432" y="236">case 1</text>
+        <text class="s2bC" x="542" y="204">3599 s</text>
+        <text class="s2bC" x="542" y="222">-&gt; 0</text>
+        <text class="s2bB" x="542" y="236">case 2</text>
+        <text class="s2bC" x="652" y="204">3600 s</text>
+        <text class="s2bC" x="652" y="222">-&gt; 1</text>
+        <text class="s2bB" x="652" y="236">case 3</text>
+        <text class="s2bC" x="762" y="204">2678245 s</text>
+        <text class="s2bC" x="762" y="222">-&gt; 743</text>
+        <text class="s2bB" x="762" y="236">case 4</text>
+
+        <text class="s2bS" x="420" y="266">3599 s and 3600 s sit either side of the first hour edge</text>
+        <text class="s2bS" x="420" y="282">2678245 s is 31 May 23:57:25, inside the last of May's 744 hours</text>
+
+        <text class="s2bN" x="30" y="318">One fixture feeds every test that names it; one parametrized function becomes four cases in the report.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - a fixture is found by its name, and parametrize gives every edge value its own pass or fail</figcaption>
+    </figure>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Fixtures: rows a test asks for by name<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>A test requests a fixture by declaring it as an argument. pytest matches the parameter name to a fixture function of the same name, runs it, and passes in what it returns. No import, no call: the name is the wiring.</p>
+        <div class="prompt-box good"><span class="label">★ A fixture and the test that asks for it (Constructed Wrenfold example)</span>import pytest
+
+@pytest.fixture
+def one_trip():
+    return [{"s": "001", "r": "002", "hour": 5}]
+
+def test_aggregate(one_trip):
+    agg = aggregate(one_trip, ["001", "002"])
+    assert agg["001"][5] == 1</div>
+        <p><strong>Scope</strong> says how often the fixture runs: <code>function</code> (the default, a fresh one for every test), <code>class</code>, <code>module</code>, <code>package</code> or <code>session</code>. Keep small row lists at function scope so no test can change the rows another test sees. Widen the scope only for something expensive and read-only.</p>
+        <p><strong>Teardown with yield.</strong> pytest recommends yield fixtures for clean-up: everything before the <code>yield</code> is setup, everything after it runs once the test finishes, and teardowns run in the reverse order of their setups. A temporary table, a connection, a file you created: build it, yield it, remove it.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Parametrize: one function, many cases<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p><code>@pytest.mark.parametrize("test_input,expected", [...])</code> runs the test once per tuple in the list. Four tuples, four test cases, each passing or failing on its own line. That matters for edge values: if the off-by-one bug breaks 3599 s and nothing else, the report says so directly instead of "test_bucket failed".</p>
+        <div class="prompt-box good"><span class="label">★ The four hour-bucket cases, and one marked case</span>@pytest.mark.parametrize("sec,expected", [
+    (0, 0),
+    (3599, 0),
+    (3600, 1),
+    (2678245, 743),
+    pytest.param(-1, 0, marks=pytest.mark.xfail),
+])
+def test_bucket(sec, expected):
+    assert hour_bucket(sec) == expected</div>
+        <p><code>pytest.param(..., marks=pytest.mark.xfail)</code> marks one case without touching the others. The -1 second case here is our illustration: a trip logged before 1 May has no defined bucket, and the case records that we know it, rather than hiding it. Use the mark for a known open question, never to silence a case that started failing.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>Property-based tests with Hypothesis<span class="mini">4 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Hypothesis calls itself "the property-based testing library for Python". Instead of listing cases, you state a property that should hold for every input in a described range, and Hypothesis chooses the inputs. <code>@given</code> turns a function into a Hypothesis test; strategies such as <code>integers()</code> describe what to generate. When it finds an input that breaks the property, it reports a counterexample, and its strategies document how they shrink a failing example towards a simpler one before reporting it.</p>
+        <div class="prompt-box good"><span class="label">★ A bucketing property (our example, not from the Hypothesis docs)</span>from hypothesis import given, strategies as st
+
+# every second of May, 0 to 31 x 86400 - 1
+@given(st.integers(min_value=0, max_value=2678399))
+def test_bucket_contains_its_second(s):
+    b = hour_bucket(s)
+    assert b * 3600 &lt;= s &lt; (b + 1) * 3600</div>
+        <p>The property is "the hour a second lands in actually contains that second". The four parametrized cases check four points; the property checks the rule. The ceiling bug breaks it for every second that is not exactly on an hour: at s = 1 the bucket is 1, and 1 x 3600 is not at or below 1. The timezone bug breaks it everywhere, because the bucket is three hours ahead of the second. Neither of those outcomes is something we ran; work them through on paper and then run it locally.</p>
+        <p>Hypothesis also has a separate section of strategies for pandas objects. We name it and stop there: read its own documentation before you rely on it.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>dbt renamed its tests so nobody would confuse the two kinds.</strong> dbt's checks are select statements that return failing rows over real tables. Its documentation now says "Tests are now called data tests to disambiguate from unit tests", and keeps <code>tests:</code> as an alias of <code>data_tests:</code>. The rename draws the same line as this session: a unit test reads code on rows you wrote; a data test reads the rows that actually arrived. Session 3 is about the second kind.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-3">
+    <div class="section-kicker">
+      <span class="klabel">Part 3 · covers testing pure functions vs IO</span>
+      <h2>Pure functions are cheap, IO is dear</h2>
+      <span class="tag concept">4 min live</span>
+    </div>
+    <p class="lede">A function that only takes values and returns values is a pure function, and testing it costs one line of fake data. A function that opens a file, reads the clock or queries a warehouse drags all of that into every test. The fix is a shape, not a tool: keep the reading and writing at the thin edges and push every rule into the pure middle. Here is Wrenfold's cleaner before and after (Constructed Wrenfold example).</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 362" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Before: one function clean_file reads the CSV, cleans every row and writes the CSV in one body, so testing a single rule needs a real input file and an output file to read back. After: three functions in a row, read_trips, clean of rows, and write_trips. Only the pure middle, filled teal, holds the rules; unit tests call it with plain lists. The read and write edges are covered by one test using pytest's built-in tmp_path fixture.">
+        <defs>
+          <filter id="s2cSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="71" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="s2cAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A1F12" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .s2cH { font: 800 12px Inter, sans-serif; fill: #2A1F12; }
+          .s2cL { font: 600 11px Inter, sans-serif; fill: #2A1F12; }
+          .s2cS { font: 400 11px Inter, sans-serif; fill: #5E5243; }
+          .s2cB { font: 800 11px Inter, sans-serif; fill: #0B5A50; }
+          .s2cA { font: 700 11px Inter, sans-serif; fill: #804F00; }
+          .s2cR { font: 800 11px Inter, sans-serif; fill: #991B1B; }
+          .s2cC { font: 700 11px ui-monospace, Menlo, monospace; fill: #2A1F12; }
+          .s2cN { font: 400 12px Inter, sans-serif; fill: #5E5243; }
+        </style>
+
+        <text class="s2cA" x="30" y="44">BEFORE: ONE FUNCTION DOES ALL THREE JOBS</text>
+
+        <g filter="url(#s2cSk)" fill="none" stroke="#2A1F12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M818 22 L834 22 L842 30 L842 48 L818 48 Z"/>
+          <path d="M834 22 L834 30 L842 30"/>
+          <rect x="30" y="56" width="820" height="92" rx="12" transform="rotate(-0.2 440 102)" fill="#FEF2F2" stroke="#991B1B"/>
+          <rect x="30" y="204" width="220" height="80" rx="12" transform="rotate(-0.8 140 244)" fill="#FBF3E4"/>
+          <path d="M254 244 L324 244" marker-end="url(#s2cAr)"/>
+          <rect x="330" y="204" width="220" height="80" rx="12" transform="rotate(0.6 440 244)" fill="#7DD3C6"/>
+          <path d="M554 244 L624 244" marker-end="url(#s2cAr)"/>
+          <rect x="630" y="204" width="220" height="80" rx="12" transform="rotate(-0.6 740 244)" fill="#FBF3E4"/>
+        </g>
+
+        <text class="s2cC" x="46" y="82">def clean_file(in_path, out_path):</text>
+        <text class="s2cL" x="46" y="106">reads the CSV, cleans every row, writes the CSV, all in one body</text>
+        <text class="s2cR" x="46" y="130">to test one rule, a test must build an input file and read an output file back</text>
+
+        <text class="s2cA" x="30" y="190">AFTER: THIN EDGES, PURE MIDDLE</text>
+
+        <text class="s2cH" x="44" y="230">Read</text>
+        <text class="s2cC" x="44" y="250">read_trips(path)</text>
+        <text class="s2cS" x="44" y="270">thin IO edge, no rules</text>
+
+        <text class="s2cH" x="344" y="230">Clean</text>
+        <text class="s2cC" x="344" y="250">clean(rows) -&gt; rows</text>
+        <text class="s2cL" x="344" y="270">every rule, no files, no clock</text>
+
+        <text class="s2cH" x="644" y="230">Write</text>
+        <text class="s2cC" x="644" y="250">write_trips(rows, path)</text>
+        <text class="s2cS" x="644" y="270">thin IO edge, no rules</text>
+
+        <text class="s2cB" x="440" y="308" text-anchor="middle">unit tests: plain lists in, plain lists out</text>
+        <text class="s2cB" x="140" y="308" text-anchor="middle">one tmp_path test</text>
+        <text class="s2cB" x="740" y="308" text-anchor="middle">one tmp_path test</text>
+
+        <text class="s2cN" x="30" y="344">Most rules live in the pure middle, so most tests never open a file. The edges get one test.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - move the rules away from the files and the expensive part of testing shrinks to the two thin edges</figcaption>
+    </figure>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Separate IO from logic<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Look at what Wrenfold's cleaner actually decides: which rows are duplicates, which trips are under 60 seconds, what a distance is in km, which hour a trip belongs to, which return stations are unknown. None of those decisions needs a file. They need values. Pull them into <code>clean(rows)</code> and every one of them becomes a three-row unit test.</p>
+        <div class="prompt-box good"><span class="label">★ The split, in outline (Constructed Wrenfold example)</span>def read_trips(path):          # IO: parse the CSV, nothing else
+    ...
+
+def clean(rows, stations):     # pure: every rule lives here
+    ...
+
+def write_trips(rows, path):   # IO: write the CSV, nothing else
+    ...
+
+def run(in_path, out_path, stations):
+    write_trips(clean(read_trips(in_path), stations), out_path)</div>
+        <p>The test for "a trip under 60 seconds is dropped" is now a list with one 59-second trip in it. Before the split, the same test needed a CSV fixture, a temporary output path and a parser to read the result back, and it would break whenever the file format changed, which has nothing to do with the rule it was meant to check.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>One integration test for the edges<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>The thin edges still need a test, but only one, and it checks plumbing, not rules: that a file written by <code>write_trips</code> comes back unchanged through <code>read_trips</code>, and that <code>run</code> wires the three together. pytest ships a built-in <code>tmp_path</code> fixture that gives each test its own temporary directory, so the test never writes into your project.</p>
+        <div class="prompt-box good"><span class="label">★ One edge test with tmp_path (Constructed Wrenfold example)</span>def test_round_trip(tmp_path):
+    rows = [{"sec": 26400, "dur": 600, "dm": 2043, "s": "030", "r": "126"}]
+    path = tmp_path / "trips.csv"
+    write_trips(rows, path)
+    assert read_trips(path) == rows</div>
+        <p>Notice the station ids are strings with their leading zero. That is deliberate: a reader that turns "030" into 30 is the type coercion bug from session 1, and the round trip is the one unit-level place where the file's own parsing is in view. Even so, it only checks the row you wrote. Whether the real May file reads cleanly is a question for the data checks in session 3.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>The rubric asks for both kinds.</strong> The ML Test Score by Breck and colleagues at Google (IEEE Big Data 2017) has a section of tests for ML infrastructure. Unit testing of the model specification code sits on that list, and so does "The ML pipeline is integration tested". The paper gives each test the same weight: half a point if it is run by hand with the results written up and shared, a full point if it runs automatically on a repeated basis. Pure-middle unit tests and one edge test are the cheapest way to earn both points, and to earn them automatically.</p>
+    </div>
+  </section>
+
+  <section class="section" id="demo-1">
+    <div class="section-kicker">
+      <span class="klabel">Build-along</span>
+      <h2>Four tests for Wrenfold's trip cleaner</h2>
+      <span class="tag demo">★ 22 min · everyone builds</span>
+    </div>
+    <p class="lede">You will write the four unit tests the session 4 bench calls u_distance, u_bucket, u_aggregate and u_parity (Constructed Wrenfold example; the functions are the Python form of the pipeline that runs on real HSL May 2021 trips, but the tests use only rows you write). Read each function, write its test in the box, and say out loud which bug from the inventory it would fail on. Running them locally is Self-study; everything below can be done by reading and editing.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 384" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Four unit tests mapped to the bugs they catch on the session 4 bench. u_distance catches null coercion and the km and miles mismatch. u_bucket catches the timezone shift and the off-by-one hour. u_aggregate catches the dropped station and the label shift. u_parity catches train and serve skew. Seven caught for four modelled cost units. Five bugs still ship: join fan-out, duplicated trips, target leakage, type coercion and the stale reference table.">
+        <defs>
+          <filter id="s2dSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="83" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="s2dAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A1F12" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .s2dH { font: 800 12px Inter, sans-serif; fill: #2A1F12; }
+          .s2dL { font: 600 12px Inter, sans-serif; fill: #2A1F12; }
+          .s2dS { font: 400 11px Inter, sans-serif; fill: #5E5243; }
+          .s2dB { font: 800 11px Inter, sans-serif; fill: #0B5A50; }
+          .s2dA { font: 700 11px Inter, sans-serif; fill: #804F00; }
+          .s2dV { font: 800 18px Inter, sans-serif; fill: #5A3700; }
+          .s2dR { font: 800 11px Inter, sans-serif; fill: #991B1B; }
+          .s2dC { font: 700 11px ui-monospace, Menlo, monospace; fill: #2A1F12; }
+          .s2dN { font: 400 12px Inter, sans-serif; fill: #5E5243; }
+        </style>
+
+        <text class="s2dA" x="30" y="56">UNIT TEST</text>
+        <text class="s2dA" x="270" y="56">CAUGHT ON THE BENCH</text>
+        <text class="s2dA" x="610" y="56">STILL SHIPS</text>
+
+        <g filter="url(#s2dSk)" fill="none" stroke="#2A1F12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M226 36 L254 36 L244 48 L244 58 L236 58 L236 48 Z"/>
+          <rect x="30" y="70" width="170" height="44" rx="10" transform="rotate(-1.5 115 92)" fill="#FFFFFF"/>
+          <rect x="30" y="124" width="170" height="44" rx="10" transform="rotate(1.2 115 146)" fill="#FFFFFF"/>
+          <rect x="30" y="178" width="170" height="44" rx="10" transform="rotate(-1 115 200)" fill="#FFFFFF"/>
+          <rect x="30" y="232" width="170" height="44" rx="10" transform="rotate(1.5 115 254)" fill="#FFFFFF"/>
+          <path d="M204 92 L262 92" marker-end="url(#s2dAr)"/>
+          <path d="M204 146 L262 146" marker-end="url(#s2dAr)"/>
+          <path d="M204 200 L262 200" marker-end="url(#s2dAr)"/>
+          <path d="M204 254 L262 254" marker-end="url(#s2dAr)"/>
+          <rect x="270" y="70" width="300" height="44" rx="10" transform="rotate(0.8 420 92)" fill="#7DD3C6"/>
+          <rect x="270" y="124" width="300" height="44" rx="10" transform="rotate(-0.8 420 146)" fill="#7DD3C6"/>
+          <rect x="270" y="178" width="300" height="44" rx="10" transform="rotate(0.6 420 200)" fill="#7DD3C6"/>
+          <rect x="270" y="232" width="300" height="44" rx="10" transform="rotate(-0.6 420 254)" fill="#7DD3C6"/>
+          <rect x="610" y="70" width="240" height="206" rx="12" transform="rotate(0.4 730 173)" fill="#FEF2F2" stroke="#991B1B"/>
+        </g>
+
+        <text class="s2dC" x="44" y="90">u_distance</text>
+        <text class="s2dS" x="44" y="106">1 unit</text>
+        <text class="s2dC" x="44" y="144">u_bucket</text>
+        <text class="s2dS" x="44" y="160">1 unit</text>
+        <text class="s2dC" x="44" y="198">u_aggregate</text>
+        <text class="s2dS" x="44" y="214">1 unit</text>
+        <text class="s2dC" x="44" y="252">u_parity</text>
+        <text class="s2dS" x="44" y="268">1 unit</text>
+
+        <text class="s2dL" x="284" y="97">null coercion · km / miles</text>
+        <text class="s2dL" x="284" y="151">timezone shift · off-by-one hour</text>
+        <text class="s2dL" x="284" y="205">dropped station · label shift</text>
+        <text class="s2dL" x="284" y="259">train/serve skew</text>
+
+        <text class="s2dR" x="626" y="100">join fan-out</text>
+        <text class="s2dR" x="626" y="128">duplicated trips</text>
+        <text class="s2dR" x="626" y="156">target leakage</text>
+        <text class="s2dR" x="626" y="184">type coercion</text>
+        <text class="s2dR" x="626" y="212">stale reference table</text>
+        <text class="s2dS" x="626" y="252">no unit test reads these rows</text>
+
+        <text class="s2dV" x="30" y="314">7 caught · 5 ship · 4 units</text>
+        <text class="s2dB" x="610" y="314">a job for session 3's data checks</text>
+
+        <text class="s2dN" x="30" y="346">The five that ship live in the real file, the join or the split, not inside a function a unit test calls.</text>
+        <text class="s2dS" x="30" y="368">Printed by the session 4 bench at normal thresholds; costs are modelled units, not timings.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - four one-unit tests catch seven bugs, and the five they miss all sit outside the functions they call</figcaption>
+    </figure>
+
+    <div class="steps">
+      <div class="step">
+        <p><strong>Read the functions under test.</strong> These are the Python form of Wrenfold's cleaner, bucketing, aggregation and feature code, simplified to the correct path with no bug switches (Constructed Wrenfold example). Every rule here is one the bench engine implements: a distance of 0 or over 50,000 m is missing, never 0; the hour is a floor of seconds since 1 May 00:00 local; aggregation counts departures per station; training and serving build the hour feature with the same function.</p>
+        <div class="prompt-box good"><span class="label">★ Step 1 · the functions under test</span>WEEKEND = {1, 2, 8, 9, 15, 16, 22, 23, 29, 30}   # May 2021 weekend days
+HOURS = 744                                       # 31 days x 24
+
+def dist_km(m):
+    if m == 0 or m &gt; 50000:
+        return None              # missing, never 0.0
+    return m / 1000
+
+def hour_bucket(sec):
+    return sec // 3600           # floor: 07:20 belongs to hour 7
+
+def aggregate(rows, stations):
+    agg = {s: [0] * HOURS for s in stations}
+    for row in rows:
+        h = row["hour"]
+        if 0 &lt;= h &lt; HOURS and row["s"] in agg:
+            agg[row["s"]][h] += 1   # count at the departure station
+    return agg
+
+def train_feat(h):
+    day = h // 24 + 1
+    return (1 if day in WEEKEND else 0, h % 24)
+
+def serve_feat(h):
+    return train_feat(h)         # one code path for both</div>
+      </div>
+      <div class="step">
+        <p><strong>Write test_distance.</strong> Three fake distances, one per path through <code>dist_km</code>. The bench's u_distance is exactly this assert. It fails on the km / miles bug (the first value becomes 1.269...) and on the null coercion bug (the two missing values become 0.0).</p>
+        <div class="prompt-box good"><span class="label">★ Step 2 · test_distance, three fake distances</span>def test_distance():
+    # Arrange: an ordinary trip, a zero, one over 50 km
+    metres = [2043, 0, 60000]
+    # Act
+    out = [dist_km(m) for m in metres]
+    # Assert
+    assert out == [2.043, None, None]</div>
+      </div>
+      <div class="step">
+        <p><strong>Write test_bucket with parametrize.</strong> Four seconds: the very start of May, one second before the first hour edge, exactly on it, and 31 May 23:57:25. The off-by-one bug (ceiling where it needed floor) fails case 2: 3599 s becomes hour 1. The timezone bug adds three hours to every second, so case 1 already fails: 0 s becomes hour 3.</p>
+        <div class="prompt-box good"><span class="label">★ Step 3 · test_bucket, four parametrized cases</span>import pytest
+
+@pytest.mark.parametrize("sec,expected", [
+    (0, 0),            # 1 May 00:00:00
+    (3599, 0),         # one second before the edge
+    (3600, 1),         # exactly on the edge
+    (2678245, 743),    # 31 May 23:57:25, the last hour of May
+])
+def test_bucket(sec, expected):
+    assert hour_bucket(sec) == expected</div>
+      </div>
+      <div class="step">
+        <p><strong>Write test_aggregate with a fixture.</strong> One trip from station "001" to "002" at hour 5. Three asserts: both station keys exist, "001" counts the trip, "002" does not. Each assert is there for a bug. The dropped-station bug stops the loop one station early, so "002" is missing. The label-shift bug counts arrivals, so "001" reads 0 and "002" reads 1.</p>
+        <div class="prompt-box good"><span class="label">★ Step 4 · test_aggregate, one trip in a fixture</span>@pytest.fixture
+def one_trip():
+    return [{"s": "001", "r": "002", "hour": 5}]
+
+def test_aggregate(one_trip):
+    agg = aggregate(one_trip, ["001", "002"])
+    assert "001" in agg and "002" in agg   # no station dropped
+    assert agg["001"][5] == 1              # counted at departure
+    assert agg["002"][5] == 0              # not at arrival</div>
+      </div>
+      <div class="step">
+        <p><strong>Write test_parity.</strong> The training and serving paths must build the same feature for the same hour. Five hours spread across the month, weekday and weekend, early and late. The serve-skew bug computes the serving hour three hours off, so every case fails. The bench runs these five hours as one test; parametrizing them gives five lines in your report instead.</p>
+        <div class="prompt-box good"><span class="label">★ Step 5 · test_parity, five hours</span>@pytest.mark.parametrize("h", [0, 7, 100, 503, 600])
+def test_parity(h):
+    assert train_feat(h) == serve_feat(h)</div>
+      </div>
+      <div class="step">
+        <p><strong>Predict before you look.</strong> Go down the bug inventory from session 1 and mark each row "caught" or "ships" for these four tests alone. Then check against the figure above. Session 4 runs the same four on the bench: 7 caught, 5 ship, 4 modelled cost units. If you marked duplicated trips as caught, ask which fake row in steps 2 to 5 could ever have a twin.</p>
+        <div class="prompt-box good"><span class="label">★ Step 6 · Wrenfold's test plan, page two (constructed)</span>FOUR UNIT TESTS, 4 cost units (modelled)     your prediction
+null coercion               u_distance         caught / ships
+km / miles mismatch         u_distance         caught / ships
+timezone shift (+3 h)       u_bucket           caught / ships
+off-by-one hour             u_bucket           caught / ships
+dropped station             u_aggregate        caught / ships
+label shift (arrivals)      u_aggregate        caught / ships
+train/serve skew            u_parity           caught / ships
+join fan-out                ?                  caught / ships
+duplicated trips            ?                  caught / ships
+target leakage              ?                  caught / ships
+type coercion               ?                  caught / ships
+stale reference table       ?                  caught / ships</div>
+      </div>
+    </div>
+
+    <div class="callout tip">
+      <p><strong>Write the bug next to the test.</strong> A test whose docstring names the bug it would fail on is a test the next person can judge, keep or delete. "Fails on null coercion and km / miles" says more than any test name.</p>
+    </div>
+  </section>
+
+  <section class="section" id="exercise">
+    <div class="section-kicker">
+      <span class="klabel">Homework</span>
+      <h2>Before session 3</h2>
+      <span class="tag exercise">30 min</span>
+    </div>
+    <ol>
+      <li><strong>Finish page two of Wrenfold's test plan</strong> from the build-along: the four tests, the bug each one fails on, and your caught or ships mark for all twelve.</li>
+      <li><strong>Pick one transform you own and split it.</strong> Draw where it reads, where it decides and where it writes. Move one rule into a pure function and write a three-row test for it, choosing each row to walk a different path.</li>
+      <li><strong>Add one parametrize to an existing test.</strong> Find a test that checks one value and give it the edge either side: the last valid value, the first invalid one, and the boundary itself.</li>
+      <li><strong>List what your unit tests cannot see.</strong> For the same pipeline, write three bugs that could only show up in the real rows: a doubled source file, an out-of-date reference table, a join that adds rows. Bring the list to session 3.</li>
+    </ol>
+  </section>
+
+  <section class="section" id="quiz">
+    <div class="section-kicker">
+      <span class="klabel">Check yourself</span>
+      <h2>Three questions</h2>
+    </div>
+    <p>Clear all three and session 2 gets stamped in your passport.</p>
+
+    <div class="quiz-q" data-answer="2">
+      <p class="qtext">1 · test_distance feeds dist_km three values: 2043 m, 0 m and 60000 m. Why are 0 m and 60000 m in the fixture at all?</p>
+      <button class="qopt" type="button">A · To make the test slower, so it looks thorough</button>
+      <button class="qopt" type="button">B · Because pytest needs at least three values to run an assert</button>
+      <button class="qopt" type="button">C · They are the two ways a distance counts as missing, so they walk the code path where the null coercion bug lives; without them the test passes on that bug</button>
+      <button class="qopt" type="button">D · They catch the km / miles bug, which 2043 m cannot</button>
+      <p class="qwhy">A unit test can only fail on a bug its rows exercise. 2043 m catches the unit bug; the two missing values are what make the null-to-0.0 bug visible.</p>
+    </div>
+
+    <div class="quiz-q" data-answer="0">
+      <p class="qtext">2 · What does <code>@pytest.mark.parametrize("sec,expected", [...])</code> with four tuples do to test_bucket?</p>
+      <button class="qopt" type="button">A · Runs the one test function four times, once per tuple, each case passing or failing on its own line of the report</button>
+      <button class="qopt" type="button">B · Picks one of the four tuples at random each run</button>
+      <button class="qopt" type="button">C · Runs all four tuples inside one case and stops at the first failure</button>
+      <button class="qopt" type="button">D · Generates more inputs around the four you gave, like Hypothesis</button>
+      <p class="qwhy">Parametrize expands one function into one case per tuple. Generating inputs from a described range is what Hypothesis does, and that is a different tool.</p>
+    </div>
+
+    <div class="quiz-q" data-answer="3">
+      <p class="qtext">3 · The HSL May 2021 file carries every trip twice. Why can none of the four unit tests see it, even with bigger fixtures?</p>
+      <button class="qopt" type="button">A · Because pytest skips duplicated rows automatically</button>
+      <button class="qopt" type="button">B · Because the doubled rows are deleted before the tests run</button>
+      <button class="qopt" type="button">C · Because unit tests only run on weekends</button>
+      <button class="qopt" type="button">D · A unit test reads the function it calls on rows you wrote; the doubling is a fact about the real file, so only a check that reads the real rows, such as a reconcile or uniqueness check, can fail on it</button>
+      <p class="qwhy">On the bench, duplicated trips is caught by d_reconcile, d_unique, b_inv and m_holdout, and by no unit test. It is one of the five that ship from the unit rung.</p>
+    </div>
+
+    <p class="quiz-score"></p>
+  </section>
+
+  <section class="section" id="official">
+    <div class="section-kicker">
+      <span class="klabel">Sources covered</span>
+      <h2>What this session teaches, and where it came from</h2>
+    </div>
+    <div class="covered">
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">pytest fixtures and parametrize</span><span class="note">pytest documentation, "How to use fixtures" and "How to parametrize fixtures and test functions", docs.pytest.org (stable; pytest 9.2.0): request by argument name, scopes, yield teardown, parametrize, pytest.param marks, Arrange / Act / Assert labels; read at source</span></div>
+      <div class="covered-row"><span class="status pill light">◐</span><span class="name">Hypothesis</span><span class="note">Hypothesis documentation, hypothesis.readthedocs.io (6.170.15): @given, strategies, counterexamples and shrinking; Self-study; the bucketing property is our example; the pandas strategies are named, not taught</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">Rules of Machine Learning, Rule #5</span><span class="note">Zinkevich, M. "Rules of Machine Learning: Best Practices for ML Engineering", Google for Developers: "Test the infrastructure independently from the machine learning"; read at source</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">The ML Test Score, infrastructure tests</span><span class="note">Breck, Cai, Nielsen, Salib and Sculley (2017), IEEE Big Data 2017: the infrastructure list and its scoring, half a point manual, a full point automated; read at source</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">dbt data tests</span><span class="note">dbt documentation, "Add data tests to your DAG", docs.getdbt.com: tests renamed to data tests "to disambiguate from unit tests"; read at source</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">Wrenfold</span><span class="note">Constructed example; the four tests are the bench's u_distance, u_bucket, u_aggregate and u_parity, and 7 caught, 5 ship, 4 units is what the bench prints</span></div>
+    </div>
+    <p class="mono" style="margin-top:14px">Every fact on this page, and its verification tier, is recorded in the course's source map.</p>
+  </section>
+
+  <section class="cheat" id="cheatsheet">
+    <h3>Session 2 cheat sheet <span>· pin this</span></h3>
+    <div class="grid-2">
+      <div class="cheat-item"><b>Arrange, act, assert</b><span>Write the rows, call one function, compare with the answer you worked out by hand.</span></div>
+      <div class="cheat-item"><b>One row per path</b><span>A unit test only fails on a bug its rows walk through. Choose rows for the paths, not the volume.</span></div>
+      <div class="cheat-item"><b>Fixtures by name</b><span>Declare the fixture as an argument; pytest matches the name. Function scope by default; yield for teardown.</span></div>
+      <div class="cheat-item"><b>Parametrize the edges</b><span>One tuple per case: the boundary, either side of it, and the last valid value. Each fails on its own line.</span></div>
+      <div class="cheat-item"><b>Pure middle, thin edges</b><span>Rules in clean(rows); read and write at the edges, covered by one tmp_path test.</span></div>
+      <div class="cheat-item"><b>Know the blind spot</b><span>Four unit tests: 7 caught, 5 ship. Doubled files, stale tables, fan-out joins and leakage need the real rows.</span></div>
+    </div>
+  </section>
+
+  <div class="callout next">
+    <span class="nx-pill">Next session</span>
+    <p>The five bugs that ship past every unit test all live in the real rows. Session 3 writes checks that read them: schema, reconcile, uniqueness, ranges, referential integrity, two distribution checks and a split check, with GX Core 1.x, pandera and dbt data tests as the tools, and an honest look at what a distribution check costs in false alarms.</p>
+  </div>
+
+  <footer class="pagefoot">
+    <span>Session 2 of 6 · learn-testing-data-ml-code-with-phoebe · by Phoebe Fu &nbsp;·&nbsp; 📚 <a href="https://phoebefu6.github.io/learn-with-phoebe/">Learn with Phoebe ↗</a></span>
+    <span><a href="01-what-test-would-fail.html">← Prev: What test would fail?</a> &nbsp;·&nbsp; <a href="03-data-checks.html">Next: Data checks →</a></span>
+  </footer>
+
+</main>
+
+<script src="../assets/app.js?v=1"></script>
+</body>
+</html>

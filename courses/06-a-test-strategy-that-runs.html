@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- social:start -->
+<meta name="description" content="Session 6 of 6. A test suite nobody runs catches nothing. Split the tests into per-commit, nightly and release lanes, spend a runtime budget where the catches are, keep data checks from going flaky, give every red check an owner, and score the whole plan on a real pipeline in the page.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Learn with Phoebe">
+<meta property="og:title" content="A test strategy that runs - learn testing data ml code with phoebe">
+<meta property="og:description" content="Session 6 of 6. Per commit, nightly, at release: lanes, a runtime budget, flaky data checks and owners, scored on the bug catcher bench.">
+<meta property="og:url" content="https://phoebefu6.github.io/learn-testing-data-ml-code-with-phoebe/courses/06-a-test-strategy-that-runs.html">
+<meta property="og:image" content="https://phoebefu6.github.io/learn-testing-data-ml-code-with-phoebe/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="A test strategy that runs - learn testing data ml code with phoebe">
+<meta name="twitter:description" content="Session 6 of 6. Three lanes, a budget, an owner for every red check, and a plan scored on a real pipeline.">
+<meta name="twitter:image" content="https://phoebefu6.github.io/learn-testing-data-ml-code-with-phoebe/assets/og-cover.png">
+<!-- social:end -->
+<title>Session 6 · A test strategy that runs - learn testing data ml code with phoebe</title>
+<link rel="stylesheet" href="../assets/style.css?v=1">
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="wrap">
+    <span class="crumb"><a href="../index.html">learn-testing-data-ml-code-with-phoebe</a> / Session 6 of 6</span>
+    <button class="btn" id="toggle-all" type="button">Expand all</button>
+    <button class="btn primary" id="zoom-toggle" type="button">Projector zoom: off</button>
+  </div>
+</div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="eyebrow">Learn Testing Data &amp; ML Code with Phoebe · Session 6 of 6</div>
+    <h1>A test strategy someone <span class="accent">keeps running</span></h1>
+    <p class="sub">Five sessions built tests. None of them is worth anything on the day nobody runs it, nobody reads it, or somebody mutes it because it went red at 3 a.m. for no reason. Tonight we decide when each test runs, what it may cost, what makes a data check cry wolf, and who answers when one fails. Then we score the whole plan on the bench.</p>
+    <div class="chip-row">
+      <span class="chip level">🔴 Capstone</span>
+      <span class="chip audience">Data, analytics and ML engineers who write pandas</span>
+      <span class="chip audience">Leads who decide what runs in CI</span>
+      <span class="chip time">45 min</span>
+    </div>
+    <div class="agenda">
+      <span class="a1" style="flex:1">0-3 · Welcome</span>
+      <span class="a2" style="flex:4">3-18 · Lanes, a budget, flaky checks and owners</span>
+      <span class="a3" style="flex:5">18-40 · Capstone: score Wrenfold's plan</span>
+      <span class="a4" style="flex:1">40-45 · Q&amp;A</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="section" id="intro">
+    <div class="section-kicker">
+      <span class="klabel">Part 0</span>
+      <h2>Where we start</h2>
+    </div>
+    <p class="lede">Session 4 found the cheapest set of tests that catches all twelve of Wrenfold's bugs: six tests, 10 modelled cost units. That answered "which tests". It did not answer the questions a team lives with every week: which of them run on every merge and which wait for the night, how much runtime each lane may spend, what to do when a distribution check goes red on a perfectly normal Tuesday, and whose job it is to look. The Constructed Wrenfold example carries on: the company is invented, the 13,810 trips its pipeline reads are real HSL Helsinki trips from May 2021 (CC BY 4.0).</p>
+
+    <div class="legend">
+      <span class="pill">🎫 Clear all three quiz questions to stamp your passport</span>
+      <span class="pill">Live = presented in the 45 minutes</span>
+      <span class="pill">Self-study = the full depth, after class</span>
+      <span class="pill">★ Build-along = do it yourself, in the page</span>
+    </div>
+
+    <div class="callout win">
+      <p><strong>★ What you walk out with tonight.</strong> Wrenfold's test plan, final page: three lanes with their triggers, a runtime budget per lane, a named owner role and a one-line runbook for every check, a written choice about redundancy, and the bench's score for the whole thing. Then the same page, written for a pipeline you own.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-1">
+    <div class="section-kicker">
+      <span class="klabel">Part 1 · covers what runs when</span>
+      <h2>Per commit, nightly, at release</h2>
+      <span class="tag concept">5 min live</span>
+    </div>
+    <p class="lede">A lane is a trigger plus the thing the tests in it can read. A commit gives you new code and nothing else, so its tests read code on rows you wrote by hand. A night gives you a new real batch, so its tests read the data. A retrained model gives you predictions, so its tests read the model. Put a test in a lane that cannot feed it what it reads, and it either cannot run or it runs on the wrong thing. Here are Wrenfold's three lanes on the bench (Constructed Wrenfold example).</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 452" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Three lanes of Wrenfold's tests. Per commit, triggered by every merge request, reads the code on fake rows: smoke plus 4 unit tests, 5 modelled units, catches 7 of 12, ships join fan-out, duplicated trips, leakage, type coercion and the stale reference table. Nightly, triggered each night, reads the real batch with the 8 data checks: 24 units, catches 11, ships only train and serve skew. At release, triggered by a retrained model, reads predictions with MFT, INV, DIR and the holdout: 50 units, catches 5, all also caught above. Per commit plus nightly together catch 12 of 12 for 29 units with no false alarms.">
+        <defs>
+          <filter id="s6aSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="61" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="s6aHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#804F00" stroke-width="1" opacity=".5"/></pattern>
+        </defs>
+        <style>
+          .s6aH { font: 800 12px Inter, sans-serif; fill: #2A1F12; }
+          .s6aL { font: 600 12px Inter, sans-serif; fill: #2A1F12; }
+          .s6aS { font: 400 11px Inter, sans-serif; fill: #5E5243; }
+          .s6aK { font: 400 11px Inter, sans-serif; fill: #2A1F12; }
+          .s6aA { font: 700 11px Inter, sans-serif; fill: #804F00; }
+          .s6aV { font: 800 20px Inter, sans-serif; fill: #5A3700; }
+          .s6aR { font: 800 11px Inter, sans-serif; fill: #991B1B; }
+          .s6aN { font: 400 12px Inter, sans-serif; fill: #5E5243; }
+        </style>
+
+        <text class="s6aH" x="30" y="28">THREE LANES, WHAT TRIGGERS THEM, WHAT THEY READ</text>
+        <text class="s6aS" x="430" y="28">Constructed Wrenfold example; costs are modelled units</text>
+
+        <text class="s6aA" x="44" y="56">LANE AND TRIGGER</text>
+        <text class="s6aA" x="240" y="56">WHAT IT READS</text>
+        <text class="s6aA" x="490" y="56">COST</text>
+        <text class="s6aA" x="600" y="56">CATCHES, OF 12 BUGS</text>
+
+        <g filter="url(#s6aSk)" fill="none" stroke="#2A1F12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="30" y="66" width="820" height="84" rx="10" transform="rotate(-0.3 440 108)" fill="#FFFFFF"/>
+          <rect x="30" y="162" width="820" height="84" rx="10" transform="rotate(0.3 440 204)" fill="url(#s6aHc)"/>
+          <rect x="30" y="258" width="820" height="84" rx="10" transform="rotate(-0.2 440 300)" fill="#FBF3E4"/>
+          <path d="M226 76 L226 140"/><path d="M476 76 L476 140"/><path d="M586 76 L586 140"/>
+          <path d="M226 172 L226 236"/><path d="M476 172 L476 236"/><path d="M586 172 L586 236"/>
+          <path d="M226 268 L226 332"/><path d="M476 268 L476 332"/><path d="M586 268 L586 332"/>
+          <circle cx="205" cy="186" r="10" fill="#FFFFFF"/>
+          <path d="M205 186 L205 180 M205 186 L210 189"/>
+          <rect x="30" y="360" width="820" height="50" rx="12" transform="rotate(0.3 440 385)" fill="#7DD3C6"/>
+        </g>
+
+        <text class="s6aH" x="44" y="92">Per commit</text>
+        <text class="s6aS" x="44" y="112">trigger: every merge</text>
+        <text class="s6aS" x="44" y="130">red blocks the merge</text>
+        <text class="s6aL" x="240" y="92">the code, on fake rows</text>
+        <text class="s6aS" x="240" y="112">smoke + 4 unit tests</text>
+        <text class="s6aV" x="500" y="106">5</text>
+        <text class="s6aS" x="500" y="126">units</text>
+        <text class="s6aV" x="600" y="102">7</text>
+        <text class="s6aR" x="600" y="124">ships: fan-out, duplicates, leakage,</text>
+        <text class="s6aR" x="600" y="140">type coercion, stale reference</text>
+
+        <text class="s6aH" x="44" y="188">Nightly</text>
+        <text class="s6aS" x="44" y="208">trigger: each night</text>
+        <text class="s6aS" x="44" y="226">red pages the owner</text>
+        <text class="s6aL" x="240" y="188">the real batch of trips</text>
+        <text class="s6aS" x="240" y="208">the 8 data checks,</text>
+        <text class="s6aS" x="240" y="226">schema to split integrity</text>
+        <text class="s6aV" x="500" y="202">24</text>
+        <text class="s6aS" x="500" y="222">units</text>
+        <text class="s6aV" x="600" y="198">11</text>
+        <text class="s6aR" x="600" y="220">ships: train/serve skew only</text>
+        <text class="s6aS" x="600" y="236">the skew lives in serving code</text>
+
+        <text class="s6aH" x="44" y="284">At release</text>
+        <text class="s6aS" x="44" y="304">trigger: a retrained model</text>
+        <text class="s6aS" x="44" y="322">red holds the release</text>
+        <text class="s6aL" x="240" y="284">the model's predictions</text>
+        <text class="s6aS" x="240" y="304">MFT, INV, DIR, holdout</text>
+        <text class="s6aV" x="500" y="298">50</text>
+        <text class="s6aS" x="500" y="318">units</text>
+        <text class="s6aV" x="600" y="294">5</text>
+        <text class="s6aS" x="600" y="316">all five also caught by the</text>
+        <text class="s6aS" x="600" y="332">two lanes above, on this list</text>
+
+        <text class="s6aH" x="44" y="382">Per commit + nightly together: 12 of 12 caught, 0 false alarms, 29 units</text>
+        <text class="s6aK" x="44" y="400">Add the release lane: still 12 caught, 79 units. It is the only lane that reads predictions.</text>
+
+        <text class="s6aN" x="30" y="436">Catches are the bench's catch matrix at normal thresholds; your own lanes will differ.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - each lane reads one thing; the cheap commit lane and the nightly lane between them close all twelve rows</figcaption>
+    </figure>
+
+    <details class="card" open>
+      <summary><span class="mode live">Live</span>Three triggers, three things they read<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p><strong>Per commit: the code.</strong> The smoke test and the four unit tests from session 2 need nothing but the function and a few rows you wrote, so they can run on every merge request and block it. On the bench they cost 5 units and catch 7 bugs. The five they miss are not in any function the fixtures call: the doubled source file, a history table the fixtures never contain, how the loader reads a column, a stale station table, which days the model is fitted on.</p>
+        <p><strong>Nightly: the data.</strong> The eight data checks from session 3 need the real batch, so they run when the batch lands. They cost 24 units and catch 11. The one they miss is train/serve skew, and the reason is instructive: the skew is in the serving code's hour feature, and the data checks read cleaned trips, which the serving path never touches. The per-commit parity test catches it for 1 unit. Neither lane is enough alone; together they catch all twelve for 29 units, with no false alarm on the clean run.</p>
+        <p><strong>At release: the model.</strong> The behaviour tests from session 5 and the holdout bar need a fitted model, so they run when one is retrained. They cost 50 units and catch 5, every one of which the two lanes above already catch on this bug list. Step 4 of the capstone asks whether that lane earns its cost anyway.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>Wiring the lanes into CI<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Turning a lane into a job that actually fires (a workflow file, a scheduler entry, a gate on a release) is CI work, and it is taught properly in <a href="https://phoebefu6.github.io/learn-dataops-with-phoebe/courses/b1-foundations-repo.html">Learn DataOps, b1</a> (the repo and its pipeline) and <a href="https://phoebefu6.github.io/learn-dataops-with-phoebe/courses/b3-data-testing-contracts.html">Learn DataOps, b3</a> (data tests and contracts in that pipeline). Bring four things from tonight to that wiring: the lane's trigger, the tests in it, its budget, and the role that is paged when it goes red. If you cannot fill all four for a test, it is not ready to wire.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>Half a point for doing it by hand.</strong> The ML Test Score (Breck, Cai, Nielsen, Salib and Sculley, IEEE Big Data 2017) gives a test half a point if it is run manually with the results documented and distributed, and a full point only if it runs automatically on a repeated basis. Points are summed per section and the final score is the minimum of the four sections. The authors say all tests are worth the same number of points on purpose, because the relative importance of tests varies by team. The rubric is scoring exactly tonight's subject: a test that waits for someone to remember it is worth half a test that a trigger runs.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-2">
+    <div class="section-kicker">
+      <span class="klabel">Part 2 · covers runtime budget and redundancy</span>
+      <h2>A runtime budget, and the thin rows</h2>
+      <span class="tag concept">6 min live</span>
+    </div>
+    <p class="lede">Every lane has a budget: a merge request can only wait so long, a nightly job has to finish before people read the numbers, a release gate has to fit in the release. Spend it on catches, not on habit. Plot each of the seventeen tests by what it costs and what it catches on Wrenfold's twelve bugs (Constructed Wrenfold example), and the spending decisions mostly make themselves. Two rows of the catch matrix still need something the bench does not have.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 500" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Scatter of the 17 tests: modelled cost per run on the x axis from 0 to 20 units, bugs caught on the y axis from 0 to 5. Row reconciliation stands out at 3 units and 5 bugs. Range checks catch 3 for 2 units, the holdout 3 for 10. Three unit tests catch 2 each for 1 unit. Invariance sits low right at 20 units and 1 bug. Split integrity and the referential check are ringed: each is the only test on the bench that catches its bug, leakage and the stale reference table.">
+        <defs>
+          <filter id="s6bSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="67" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <style>
+          .s6bH { font: 800 12px Inter, sans-serif; fill: #2A1F12; }
+          .s6bL { font: 600 12px Inter, sans-serif; fill: #2A1F12; }
+          .s6bS { font: 400 11px Inter, sans-serif; fill: #5E5243; }
+          .s6bA { font: 700 11px Inter, sans-serif; fill: #804F00; }
+          .s6bR { font: 800 11px Inter, sans-serif; fill: #991B1B; }
+          .s6bN { font: 400 12px Inter, sans-serif; fill: #5E5243; }
+        </style>
+
+        <text class="s6bH" x="30" y="28">SEVENTEEN TESTS: WHAT EACH COSTS, WHAT EACH CATCHES</text>
+        <text class="s6bS" x="30" y="46">Bugs caught per test at normal thresholds; catches overlap, so they do not add up to 12.</text>
+        <text class="s6bA" x="30" y="72">BUGS CAUGHT</text>
+
+        <g filter="url(#s6bSk)" fill="none" stroke="#2A1F12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M110 404 L830 404"/>
+          <path d="M110 404 L110 86"/>
+          <path d="M290 404 L290 410"/><path d="M460 404 L460 410"/><path d="M630 404 L630 410"/><path d="M800 404 L800 410"/>
+          <circle cx="222" cy="100" r="7" fill="#7DD3C6"/>
+          <circle cx="188" cy="212" r="5" fill="#FFFFFF"/>
+          <circle cx="460" cy="212" r="5" fill="#FFFFFF"/>
+          <circle cx="138" cy="268" r="5" fill="#FFFFFF"/>
+          <circle cx="154" cy="268" r="5" fill="#FFFFFF"/>
+          <circle cx="170" cy="268" r="5" fill="#FFFFFF"/>
+          <circle cx="212" cy="268" r="5" fill="#FFFFFF"/>
+          <circle cx="230" cy="268" r="5" fill="#FFFFFF"/>
+          <circle cx="290" cy="268" r="5" fill="#FFFFFF"/>
+          <circle cx="392" cy="268" r="5" fill="#FFFFFF"/>
+          <circle cx="144" cy="324" r="5" fill="#FFFFFF"/>
+          <circle cx="160" cy="324" r="5" fill="#FFFFFF"/>
+          <circle cx="188" cy="324" r="5" fill="#FFFFFF"/>
+          <circle cx="290" cy="324" r="5" fill="#FFFFFF"/>
+          <circle cx="528" cy="324" r="5" fill="#FFFFFF"/>
+          <circle cx="800" cy="324" r="5" fill="#FFFFFF"/>
+          <circle cx="154" cy="380" r="5" fill="#FFFFFF"/>
+          <circle cx="160" cy="324" r="10" stroke="#991B1B" stroke-dasharray="4 3"/>
+          <circle cx="230" cy="268" r="10" stroke="#991B1B" stroke-dasharray="4 3"/>
+          <circle cx="40" cy="464" r="8" stroke="#991B1B" stroke-dasharray="4 3"/>
+        </g>
+
+        <text class="s6bS" x="100" y="104" text-anchor="end">5</text>
+        <text class="s6bS" x="100" y="160" text-anchor="end">4</text>
+        <text class="s6bS" x="100" y="216" text-anchor="end">3</text>
+        <text class="s6bS" x="100" y="272" text-anchor="end">2</text>
+        <text class="s6bS" x="100" y="328" text-anchor="end">1</text>
+        <text class="s6bS" x="100" y="384" text-anchor="end">0</text>
+
+        <text class="s6bS" x="120" y="424" text-anchor="middle">0</text>
+        <text class="s6bS" x="290" y="424" text-anchor="middle">5</text>
+        <text class="s6bS" x="460" y="424" text-anchor="middle">10</text>
+        <text class="s6bS" x="630" y="424" text-anchor="middle">15</text>
+        <text class="s6bS" x="800" y="424" text-anchor="middle">20</text>
+        <text class="s6bA" x="370" y="442">MODELLED COST UNITS PER RUN</text>
+
+        <text class="s6bL" x="236" y="104">d_reconcile · 3 units, 5 bugs</text>
+        <text class="s6bS" x="200" y="216">d_range</text>
+        <text class="s6bS" x="472" y="216">m_holdout · 10 units, 3</text>
+        <text class="s6bS" x="132" y="250">u_distance, u_bucket, u_aggregate</text>
+        <text class="s6bS" x="204" y="294">d_unique, d_referential</text>
+        <text class="s6bS" x="300" y="272">d_hour_drift</text>
+        <text class="s6bS" x="404" y="272">b_mft</text>
+        <text class="s6bS" x="180" y="310">d_schema</text>
+        <text class="s6bS" x="126" y="348">u_parity, d_split</text>
+        <text class="s6bS" x="302" y="328">d_dist_drift</text>
+        <text class="s6bS" x="540" y="328">b_dir · 12 units, 1</text>
+        <text class="s6bS" x="800" y="308" text-anchor="end">b_inv · 20 units, 1 bug</text>
+        <text class="s6bS" x="166" y="384">smoke · 0 bugs</text>
+
+        <text class="s6bR" x="56" y="468">ringed: the only test of the 17 that catches that bug</text>
+        <text class="s6bS" x="346" y="468">d_split (leakage), d_referential (stale reference)</text>
+        <text class="s6bN" x="30" y="490">Points at the same spot are drawn side by side. INV costs 20 units for 1 bug; d_reconcile 3 for 5.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - the best buy sits top left, the dearest test sits bottom right, and the two ringed points are single points of failure</figcaption>
+    </figure>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Spend the budget where the catches are<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Read the plot top left to bottom right. Row reconciliation, counting rows from raw to clean to aggregate, costs 3 modelled units and catches 5 of the twelve bugs: join fan-out, duplicated trips, dropped station, label shift and type coercion. The range checks catch 3 for 2 units. Three of the unit tests catch 2 each for 1 unit. At the other corner, the invariance test re-runs the whole pipeline for 20 units and catches one bug, duplicated trips, which reconciliation and the uniqueness check already catch.</p>
+        <p>That does not make INV worthless. It makes it a poor fit for a lane with a tight budget. A useful rule of thumb for any lane: sort the candidate tests by bugs caught per unit, fill the cheap lane from the top, and push what is left to a lane that runs less often. The numbers on this plot are modelled units, not seconds, so trust the ordering more than the ratios. And remember the counts overlap: d_reconcile's 5 and d_unique's 2 share two bugs, so together they catch 5, not 7.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Single points of failure: two bugs with one test each<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Turn on all seventeen tests and read the catch matrix row by row. Ten bugs are caught by two or more tests. Two are not: target leakage is caught only by d_split, and the stale reference table only by d_referential. There is no second line for either anywhere on the bench, so adding more of the tests you already have buys nothing for those two rows. If one of those checks is muted, misconfigured or deleted in a tidy-up, its bug ships and nothing else notices.</p>
+        <p>The second line has to be a new test you write, one that reads something different. Two ideas, offered as ideas and not measured on the bench:</p>
+        <ul>
+          <li><strong>Idea, for leakage:</strong> log the date range the model was actually fitted on, and compare it with the scored days. The split check reads the split you asked for; this reads the fit that happened.</li>
+          <li><strong>Idea, for the stale table:</strong> a check that the station table's row count is not below last month's. The referential check reads trips against the table; this reads the table against its own history.</li>
+        </ul>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>Redundancy is insurance for the bug you have not named<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>The cheapest full catch, six tests for 10 units, was found by an exhaustive search that knew all twelve bugs in advance. A real team does not know its next bug. Every test you drop because "another test already catches that" is a bet that the overlap you measured on known bugs holds for unknown ones. Sometimes it will: reconciliation catches anything that changes row counts, whatever its cause. Sometimes it will not: the split check catches exactly one way of fitting on the wrong days.</p>
+        <p>So write the redundancy choice down as a choice. Three honest positions: run the cheapest set and accept that each of its rows is one failure from shipping; run the cheapest set plus a second line for the rows you most fear; or run everything that fits the budget and accept the cost. The bench can price each option. It cannot tell you which bug comes next, and nothing published that we found measures how much redundancy pays off.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>Six months stale, two percent back.</strong> Rule 10 of Martin Zinkevich's Rules of Machine Learning, "Watch for silent failures", tells of a table in Google Play that went stale for six months. Refreshing that table alone gave a 2% boost in install rate. That is Wrenfold's stale reference bug at production scale, and the lesson for a plan is the thin row: if one check stands between you and a stale table, the day that check is off is the first day of the six months.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-3">
+    <div class="section-kicker">
+      <span class="klabel">Part 3 · covers flaky data tests and ownership</span>
+      <h2>Flaky data tests and who owns a red check</h2>
+      <span class="tag concept">4 min live</span>
+    </div>
+    <p class="lede">A data check that fails on normal data will be muted within weeks, and then it catches nothing. A check that fails on a real bug and has nobody assigned to it will be ignored, which is the same outcome more slowly. Both are strategy failures, not test failures. Here is what should happen between "the check went red" and "the check is green again", drawn for Wrenfold (Constructed Wrenfold example).</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The life of a failing check. A check fails, for example the nightly hour drift check. The named owner triages it within the lane's window. Three ways out: fix the code and add its case as a unit test; fix or quarantine the data and tell the source's owner; or move the threshold in writing, with the known-good value 0.0415 next to the bar 0.08. A fourth path, drawn as the wrong way in red: mute it, so the check stays in the suite, reads nothing, and the next real bug on that path ships.">
+        <defs>
+          <filter id="s6cSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="73" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="s6cAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A1F12" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .s6cH { font: 800 12px Inter, sans-serif; fill: #2A1F12; }
+          .s6cS { font: 400 11px Inter, sans-serif; fill: #5E5243; }
+          .s6cK { font: 400 11px Inter, sans-serif; fill: #2A1F12; }
+          .s6cR { font: 800 11px Inter, sans-serif; fill: #991B1B; }
+          .s6cN { font: 400 12px Inter, sans-serif; fill: #5E5243; }
+        </style>
+
+        <text class="s6cH" x="30" y="28">THE LIFE OF A FAILING CHECK</text>
+        <text class="s6cS" x="250" y="28">Constructed Wrenfold example; the windows are a choice each team writes down</text>
+
+        <g filter="url(#s6cSk)" fill="none" stroke="#2A1F12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="30" y="70" width="180" height="80" rx="10" transform="rotate(-1 120 110)" fill="#FBF3E4"/>
+          <path d="M212 110 L246 110" marker-end="url(#s6cAr)"/>
+          <rect x="250" y="70" width="220" height="80" rx="10" transform="rotate(0.6 360 110)" fill="#7DD3C6"/>
+          <path d="M472 100 L526 66" marker-end="url(#s6cAr)"/>
+          <path d="M472 110 L526 144" marker-end="url(#s6cAr)"/>
+          <path d="M472 122 L526 222" marker-end="url(#s6cAr)"/>
+          <rect x="530" y="34" width="320" height="64" rx="10" transform="rotate(0.4 690 66)" fill="#FFFFFF"/>
+          <rect x="530" y="112" width="320" height="64" rx="10" transform="rotate(-0.4 690 144)" fill="#FFFFFF"/>
+          <rect x="530" y="190" width="320" height="64" rx="10" transform="rotate(0.3 690 222)" fill="#FFFFFF"/>
+          <path d="M360 154 L360 284" stroke="#991B1B" stroke-dasharray="7 5"/>
+          <rect x="250" y="290" width="600" height="60" rx="10" transform="rotate(-0.3 550 320)" fill="#FEF2F2" stroke="#991B1B"/>
+          <path d="M60 210 L60 186 L84 186 L84 210 Z M66 210 L66 216 L78 216 L78 210" stroke="#804F00"/>
+        </g>
+
+        <text class="s6cH" x="44" y="96">A check fails</text>
+        <text class="s6cS" x="44" y="116">e.g. nightly hour drift</text>
+        <text class="s6cS" x="44" y="134">red, with its value</text>
+
+        <text class="s6cH" x="264" y="96">The named owner triages</text>
+        <text class="s6cK" x="264" y="116">within the lane's window:</text>
+        <text class="s6cK" x="264" y="134">merge / next morning / release</text>
+
+        <text class="s6cH" x="544" y="58">1 · Fix the code</text>
+        <text class="s6cS" x="544" y="80">a real bug: add its case as a unit test</text>
+        <text class="s6cH" x="544" y="136">2 · Fix or quarantine the data</text>
+        <text class="s6cS" x="544" y="158">bad source: hold the batch, tell its owner</text>
+        <text class="s6cH" x="544" y="214">3 · Move the threshold, in writing</text>
+        <text class="s6cS" x="544" y="236">known good 0.0415 next to the bar 0.08</text>
+
+        <text class="s6cR" x="372" y="236">fourth path</text>
+        <text class="s6cR" x="264" y="314">Wrong way: mute it</text>
+        <text class="s6cS" x="264" y="334">the check stays in the suite and reads nothing; the next real bug on that path ships</text>
+
+        <text class="s6cN" x="30" y="382">The three ways out leave the check reading something true. Muting leaves a green light wired to nothing.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - every red check ends in one of three written outcomes; the fourth path looks the same on the dashboard and catches nothing</figcaption>
+    </figure>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>A flaky data test is a threshold inside normal variation<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>In application code a flaky test usually means timing, ordering or shared state. A data check is flaky for a simpler reason: its threshold sits inside the range that normal batches move through, so some nights it fails on nothing at all. On the bench, Wrenfold's clean month has a median trip of 2.0095 km against a stored 1.982, and an hour-profile distance of 0.0415. Both pass at the normal thresholds (within 15%, at most 0.08). Press "Tighten thresholds" (1%, 0.02, MAE at most 1.9) and the clean pipeline, with no bug in it, raises false alarms: 2 in the nightly lane (the two distribution checks) and 1 in the release lane (the holdout bar, since the clean MAE is 1.9113).</p>
+        <p>The bench runs one clean month, so it shows the false alarm as a fixed fact. A real nightly job sees a new batch every night, and a threshold set that close to normal fails on some nights and not others. That is what a flaky data test looks like from the outside. The cure is the order of work from session 3: measure the known-good value first, then put the bar outside normal variation and inside the drift you would act on. Where exactly is a business choice, not a statistical fact, and teams reasonably disagree.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Every check has an owner and a one-line runbook<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>"The team owns it" means nobody does. Give each lane an owner role, the person who is paged and who decides which of the three ways out applies. In Wrenfold's constructed plan: the analytics engineer owns the per-commit lane (the transforms), the data engineer owns the nightly lane (the batch and its source), the ML engineer owns the release lane (the model).</p>
+        <p>Then give each check one line that answers "what do I look at first?". For example, for the nightly row reconciliation: <em>"Counts disagree: compare raw and clean row counts; a ratio near 2 means duplicated source rows; a jump in clean rows after a join means fan-out."</em> One line is enough for the owner at 07:00 to pick a path instead of a mute button.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>Flakes in general, and monitoring after deploy<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Flaky tests in general software, their causes, quarantine and the cost of a slow suite are taught in <a href="https://phoebefu6.github.io/learn-ai-qa-with-phoebe/courses/05-flakes-and-speed.html">Learn AI QA, session 5</a>. Everything tonight stops at "before it ships". Once the forecast is live, the questions change to which signals to watch and who acts on them: see <a href="https://phoebefu6.github.io/learn-ml-production-with-phoebe/courses/05-monitor-what-you-will-act-on.html">Learn ML Production, session 5</a> and, for drift in the data itself, <a href="https://phoebefu6.github.io/learn-data-observability-with-phoebe/courses/b5-distribution-drift.html">Learn Data Observability, b5</a>. The nightly distribution checks here are the pre-ship cousin of that monitoring; the owner-and-runbook habit carries straight over.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>From 90% to 60%, quietly.</strong> Rule 10 of the Rules of Machine Learning also warns that a feature column populated in 90% of examples can drop to 60% without anything failing. A not-null rate check would see it. Whether anyone acts depends on everything in this Part: a threshold set from the known-good value rather than a guess, so it is not already muted for crying wolf, and a named owner who reads the alert the morning it fires.</p>
+    </div>
+  </section>
+
+  <section class="section" id="demo-1">
+    <div class="section-kicker">
+      <span class="klabel">Build-along</span>
+      <h2>Wrenfold's test plan, scored on the bench</h2>
+      <span class="tag demo">★ 22 min · everyone builds</span>
+    </div>
+    <p class="lede">The capstone assembles everything from sessions 1 to 5 into one plan, then scores it on the bench below: the same real pipeline, twelve planted bugs and seventeen tests from session 4, running in your browser on real HSL Helsinki trips from May 2021 (Constructed Wrenfold example). The bench opens on the cheapest full catch; the steps walk the plan lane by lane.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 456" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Wrenfold's test plan v1, constructed, as a one-page table. Per commit: every merge, reads code; smoke, u_distance, u_bucket, u_aggregate, u_parity; 5 units; owner analytics engineer. Nightly: each night, reads the real batch; d_schema, d_reconcile, d_unique, d_range, d_referential, d_dist_drift, d_hour_drift, d_split; 24 units; owner data engineer. At release: a retrained model, reads predictions; b_mft, b_inv, b_dir, m_holdout; 50 units; owner ML engineer. Bench score of the union, all 17 tests at normal thresholds: 12 of 12 caught, 0 ship, 0 false alarms, 79 modelled units per run.">
+        <defs>
+          <filter id="s6dSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="79" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <style>
+          .s6dH { font: 800 12px Inter, sans-serif; fill: #2A1F12; }
+          .s6dL { font: 600 11px Inter, sans-serif; fill: #2A1F12; }
+          .s6dS { font: 400 11px Inter, sans-serif; fill: #5E5243; }
+          .s6dK { font: 400 11px Inter, sans-serif; fill: #2A1F12; }
+          .s6dA { font: 700 11px Inter, sans-serif; fill: #804F00; }
+          .s6dV { font: 800 18px Inter, sans-serif; fill: #5A3700; }
+          .s6dC { font: 700 11px ui-monospace, Menlo, monospace; fill: #2A1F12; }
+          .s6dN { font: 400 12px Inter, sans-serif; fill: #5E5243; }
+        </style>
+
+        <text class="s6dH" x="30" y="28">WRENFOLD'S TEST PLAN v1</text>
+        <text class="s6dS" x="230" y="28">Constructed; assembled from sessions 1 to 5 and scored on the bench</text>
+
+        <g filter="url(#s6dSk)" fill="none" stroke="#2A1F12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="30" y="46" width="820" height="34" rx="8" transform="rotate(-0.2 440 63)" fill="#FBF3E4"/>
+          <rect x="30" y="86" width="820" height="72" rx="8" transform="rotate(0.2 440 122)" fill="#FFFFFF"/>
+          <rect x="30" y="164" width="820" height="86" rx="8" transform="rotate(-0.2 440 207)" fill="#FFFFFF"/>
+          <rect x="30" y="256" width="820" height="72" rx="8" transform="rotate(0.2 440 292)" fill="#FFFFFF"/>
+          <path d="M160 94 L160 150"/><path d="M340 94 L340 150"/><path d="M640 94 L640 150"/><path d="M700 94 L700 150"/>
+          <path d="M160 172 L160 242"/><path d="M340 172 L340 242"/><path d="M640 172 L640 242"/><path d="M700 172 L700 242"/>
+          <path d="M160 264 L160 320"/><path d="M340 264 L340 320"/><path d="M640 264 L640 320"/><path d="M700 264 L700 320"/>
+          <rect x="30" y="344" width="820" height="66" rx="12" transform="rotate(-0.3 440 377)" fill="#7DD3C6"/>
+        </g>
+
+        <text class="s6dA" x="44" y="68">LANE</text>
+        <text class="s6dA" x="174" y="68">TRIGGER</text>
+        <text class="s6dA" x="354" y="68">TESTS</text>
+        <text class="s6dA" x="652" y="68">UNITS</text>
+        <text class="s6dA" x="714" y="68">OWNER ROLE</text>
+
+        <text class="s6dH" x="44" y="114">Per commit</text>
+        <text class="s6dK" x="174" y="114">every merge</text>
+        <text class="s6dS" x="174" y="132">reads code, fake rows</text>
+        <text class="s6dC" x="354" y="114">smoke, u_distance, u_bucket,</text>
+        <text class="s6dC" x="354" y="132">u_aggregate, u_parity</text>
+        <text class="s6dV" x="656" y="128">5</text>
+        <text class="s6dL" x="714" y="114">analytics engineer</text>
+        <text class="s6dS" x="714" y="132">the transforms</text>
+
+        <text class="s6dH" x="44" y="192">Nightly</text>
+        <text class="s6dK" x="174" y="192">each night</text>
+        <text class="s6dS" x="174" y="210">reads the real batch</text>
+        <text class="s6dC" x="354" y="192">d_schema, d_reconcile, d_unique,</text>
+        <text class="s6dC" x="354" y="210">d_range, d_referential, d_dist_drift,</text>
+        <text class="s6dC" x="354" y="228">d_hour_drift, d_split</text>
+        <text class="s6dV" x="656" y="214">24</text>
+        <text class="s6dL" x="714" y="192">data engineer</text>
+        <text class="s6dS" x="714" y="210">the batch, its source</text>
+
+        <text class="s6dH" x="44" y="284">At release</text>
+        <text class="s6dK" x="174" y="284">a retrained model</text>
+        <text class="s6dS" x="174" y="302">reads predictions</text>
+        <text class="s6dC" x="354" y="284">b_mft, b_inv, b_dir, m_holdout</text>
+        <text class="s6dV" x="656" y="298">50</text>
+        <text class="s6dL" x="714" y="284">ML engineer</text>
+        <text class="s6dS" x="714" y="302">the model</text>
+
+        <text class="s6dH" x="44" y="370">Bench score of the union: all 17 tests, normal thresholds</text>
+        <text class="s6dK" x="44" y="392">12 of 12 caught · 0 ship · 0 false alarms on the clean run · 79 units per run (modelled)</text>
+
+        <text class="s6dN" x="30" y="440">Same bench, per commit + nightly only: 12 caught for 29 units. Step 4 decides what release is for.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - plan v1 catches everything, and 29 of its 79 units catch everything too; the capstone is deciding what the rest buys</figcaption>
+    </figure>
+
+    <div class="tdm-bench" data-mode="full" data-rung="cheapest"></div>
+
+    <div class="steps">
+      <div class="step">
+        <p><strong>Assemble plan v1 from sessions 1 to 5.</strong> Every test you wrote has a home lane, decided by what it reads. Copy this into your notes; it is the constructed starting plan the figure above draws.</p>
+        <div class="prompt-box good"><span class="label">★ Step 1 · Wrenfold's test plan v1 (constructed)</span>WRENFOLD TEST PLAN v1 (constructed)        cost units are modelled
+s1  bug inventory      12 bugs, the stage each enters at
+s2  unit tests         u_distance, u_bucket, u_aggregate, u_parity
+s3  data checks        d_schema, d_reconcile, d_unique, d_range,
+                       d_referential, d_dist_drift, d_hour_drift, d_split
+s4  bench              cheapest full catch: 6 tests, 10 units
+s5  behaviour tests    b_mft, b_inv, b_dir, plus the holdout bar m_holdout
+
+LANE         TRIGGER            TESTS                     UNITS  OWNER ROLE
+per commit   every merge        smoke + 4 unit tests          5  analytics engineer
+nightly      each night         8 data checks                24  data engineer
+release      retrained model    MFT, INV, DIR, holdout       50  ML engineer</div>
+      </div>
+      <div class="step">
+        <p><strong>Set the bench to the per-commit lane: press "+ unit tests".</strong> That preset is exactly the lane: the smoke test and the four unit tests. Read the headline and the "Ships" line. If Wrenfold ran only this lane, these five bugs would reach the forecast.</p>
+        <div class="prompt-box good"><span class="label">★ Step 2 · the per-commit lane, as the bench prints it</span>+ unit tests      7 caught   5 ship   0 false alarms   5 units
+ships: join fan-out, duplicated trips, target leakage,
+       type coercion, stale reference table</div>
+      </div>
+      <div class="step">
+        <p><strong>Add the nightly lane: press "+ data checks".</strong> That preset is the per-commit lane plus the eight data checks. The headline should read 0 of 12 bugs ship, 12 caught, 0 false alarms, 29 units. Turn off u_parity by hand and watch train/serve skew start to ship: the nightly lane alone cannot see it. Turn it back on.</p>
+        <div class="prompt-box good"><span class="label">★ Step 3 · per commit + nightly</span>+ data checks     12 caught   0 ship   0 false alarms   29 units
+nightly lane alone (8 data checks): 11 caught, 24 units, ships train/serve skew</div>
+      </div>
+      <div class="step">
+        <p><strong>Press "+ behaviour tests" and decide whether the release lane earns its 50 units.</strong> All seventeen are on: still 12 caught, now 79 units. On this bug list the release lane adds no catch. Argue both sides before you decide. Against: on the bench it is 50 units of cost for nothing found, and Zinkevich's Rules 1 and 4 say keep a first model simple and get the infrastructure right before spending heavily on the model. For: it is the only lane that reads what the model predicts, so it is the only one that could see a bug living in the model's behaviour rather than in the code or the data, and Breck et al. found ML-specific tests under-implemented at every team they surveyed (none of the 28 above 80% of teams). Breck et al. also note that different systems may reasonably aim at different points on their scale. No study we found measures the payoff curve; write your choice and your reason.</p>
+        <div class="prompt-box good"><span class="label">★ Step 4 · the release-lane decision (yours to write)</span>+ behaviour tests  12 caught   0 ship   0 false alarms   79 units
+release lane alone: 5 caught, 50 units, every catch also made by commit or nightly
+
+Decision: keep / trim / drop the release lane
+Reason:   ________________________________________________
+If trim, which tests stay (b_mft 8, b_inv 20, b_dir 12, m_holdout 10): ________</div>
+      </div>
+      <div class="step">
+        <p><strong>Press "Tighten thresholds" and count what your nightly lane would page on.</strong> With all seventeen on, the headline still says 12 caught, now with 3 false alarms on the clean run: d_dist_drift, d_hour_drift and m_holdout. Two of the three are in the nightly lane, which means the data engineer is paged twice on a pipeline with no bug in it, and on a real feed, some nights and not others. Write the known-good value next to each bar. Then press "Tighten thresholds" again to return to normal before step 6.</p>
+        <div class="prompt-box good"><span class="label">★ Step 5 · what tight thresholds would page on</span>tight: 12 caught   3 false alarms on the clean run   79 units
+nightly  d_dist_drift   median 2.0095 km vs stored 1.982   bar: within 1%    false alarm
+nightly  d_hour_drift   hour profile 0.0415                bar: 0.02         false alarm
+release  m_holdout      MAE 1.9113                         bar: 1.9          false alarm
+normal bars (15%, 0.08, 2.2): all three pass on the clean run</div>
+      </div>
+      <div class="step">
+        <p><strong>Press "Cheapest full catch" and write the final plan.</strong> Six tests, 12 caught, 0 false alarms, 10 units. Now decide, in writing, how far above that floor you go: which lane each kept test lives in, which second line you add for the two thin rows, what you do with the release lane, and who owns each lane. Your numbers will differ from anyone else's, because the redundancy choice is yours.</p>
+        <div class="prompt-box good"><span class="label">★ Step 6 · Wrenfold's test plan, final page (constructed; fill it in)</span>FLOOR (bench, cheapest full catch): u_distance, u_bucket, u_parity,
+  d_reconcile, d_referential, d_split = 12 caught, 0 false alarms, 10 units
+
+LANE        TESTS KEPT                        UNITS  OWNER ROLE          RUNBOOK LINE
+per commit  ______________________________    ____   analytics engineer  ______________
+nightly     ______________________________    ____   data engineer       ______________
+release     ______________________________    ____   ML engineer         ______________
+
+Thin rows (one test each on the bench):
+  leakage -&gt; d_split only        second line (idea): _______________________
+  stale ref -&gt; d_referential only  second line (idea): _______________________
+Redundancy choice and why: ________________________________________________
+Thresholds: known-good value written next to every bar   [ ] done</div>
+      </div>
+    </div>
+
+    <div class="callout tip">
+      <p><strong>Score the plan, not the tests.</strong> A strong test in the wrong lane, or with nobody to answer it, is worth less than a modest one that runs every night and has an owner. The bench scores which bugs a set of tests would catch; whether they are run, read and acted on is the part only the plan decides.</p>
+    </div>
+  </section>
+
+  <section class="section" id="exercise">
+    <div class="section-kicker">
+      <span class="klabel">Homework</span>
+      <h2>After the last session</h2>
+      <span class="tag exercise">30 min</span>
+    </div>
+    <ol>
+      <li><strong>Write the plan for a pipeline you own.</strong> Three lanes with their triggers, the tests in each, a runtime budget per lane, and an owner role for each lane. Use your session 1 bug inventory as the list it has to catch.</li>
+      <li><strong>Find your thin rows.</strong> For each bug in your inventory, count the tests that would fail on it. Every row with one test needs a written decision: accept it, or add a second line that reads something different.</li>
+      <li><strong>Write the known-good value and a one-line runbook</strong> next to every threshold in your nightly lane. Any bar without a known-good value beside it is a guess, and a guess is how checks become flaky.</li>
+      <li><strong>Audit the mutes.</strong> List every check in your current suite that is skipped, muted or set to warn-only. For each, pick one of the three ways out from Part 3, and put a date next to it.</li>
+    </ol>
+  </section>
+
+  <section class="section" id="quiz">
+    <div class="section-kicker">
+      <span class="klabel">Check yourself</span>
+      <h2>Three questions</h2>
+    </div>
+    <p>Clear all three and session 6 gets stamped in your passport.</p>
+
+    <div class="quiz-q" data-answer="2">
+      <p class="qtext">1 · Wrenfold's nightly lane runs all eight data checks on the real batch and catches 11 of 12 bugs. Why does it miss train/serve skew?</p>
+      <button class="qopt" type="button">A · Its thresholds are too loose; tightening them would catch the skew</button>
+      <button class="qopt" type="button">B · Train/serve skew only happens at weekends, and the bench runs on weekdays</button>
+      <button class="qopt" type="button">C · The skew lives in how the serving code computes the hour feature, and the data checks read cleaned trips, which the serving path never touches; a per-commit parity test that compares the two feature functions catches it for 1 unit</button>
+      <button class="qopt" type="button">D · Data checks cannot run on the real batch</button>
+      <p class="qwhy">A lane catches what its tests read. The nightly lane reads data; the skew is in code that the batch does not exercise, so the per-commit lane has to carry it.</p>
+    </div>
+
+    <div class="quiz-q" data-answer="0">
+      <p class="qtext">2 · A nightly distribution check fails on some nights and passes on others, and nobody can find a bug on the red nights. What is the most likely cause?</p>
+      <button class="qopt" type="button">A · Its threshold sits inside normal night-to-night variation: on the bench, a 1% bar on the median trip and a 0.02 bar on the hour profile both fail on the clean, bug-free month</button>
+      <button class="qopt" type="button">B · The check runs too often and should move to the release lane</button>
+      <button class="qopt" type="button">C · Distribution checks are inherently random and should be muted</button>
+      <button class="qopt" type="button">D · The test framework has a timing bug</button>
+      <p class="qwhy">A flaky data check is usually a threshold problem, not a code problem. Measure the known-good value, set the bar outside normal variation, and write both down.</p>
+    </div>
+
+    <div class="quiz-q" data-answer="3">
+      <p class="qtext">3 · With all seventeen tests on, leakage is caught only by d_split and the stale reference table only by d_referential. Why does a second line for them have to be a new test?</p>
+      <button class="qopt" type="button">A · Because the bench refuses to run the same test twice</button>
+      <button class="qopt" type="button">B · Because tightening thresholds on the other checks would catch both</button>
+      <button class="qopt" type="button">C · Because the behaviour tests would catch them if they ran more often</button>
+      <button class="qopt" type="button">D · Because none of the other sixteen tests fails on either bug, so adding more of the tests you have adds nothing to those rows; a second line has to read something different, such as the logged fit dates or the station table's row count against last month</button>
+      <p class="qwhy">Redundancy means a second test that reads a different thing. Running the same reading twice, or more tests that read elsewhere, leaves a thin row thin.</p>
+    </div>
+
+    <p class="quiz-score"></p>
+  </section>
+
+  <section class="section" id="official">
+    <div class="section-kicker">
+      <span class="klabel">Sources covered</span>
+      <h2>What this session teaches, and where it came from</h2>
+    </div>
+    <div class="covered">
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">The ML Test Score scoring</span><span class="note">Breck, Cai, Nielsen, Salib and Sculley, IEEE Big Data 2017: half a point manual and documented, a full point automated on a repeated basis, final score the minimum of four sections, equal points by design; read at source</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">Rules of Machine Learning, Rule 10</span><span class="note">Zinkevich, Google for Developers: Google Play's table stale for six months and the 2% install-rate gain; the 90% to 60% feature column; Rules 1 and 4 for the release-lane argument; read at source</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">The bench canon</span><span class="note">Computed by the in-page engine on real HSL trips (CC BY 4.0): per-test catches, lane scores, tight-threshold false alarms; a Python twin agrees on every number</span></div>
+      <div class="covered-row"><span class="status pill light">◐</span><span class="name">Lanes and owners</span><span class="note">A working frame, not a published standard: per commit, nightly and release, with owner roles and runbook lines; cost units are modelled, not timed</span></div>
+      <div class="covered-row"><span class="status pill light">◐</span><span class="name">How much model testing pays</span><span class="note">Contested: Breck et al. against Rules 1 and 4 and Breck et al.'s own note on aiming at different points; no study found that measures the payoff</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">Wrenfold</span><span class="note">Constructed example: its test plan, owner roles and second-line ideas are illustrations; its pipeline is the bench engine</span></div>
+    </div>
+    <p class="mono" style="margin-top:14px">Every fact on this page, and its verification tier, is recorded in the course's source map.</p>
+  </section>
+
+  <section class="cheat" id="cheatsheet">
+    <h3>Session 6 cheat sheet <span>· pin this</span></h3>
+    <div class="grid-2">
+      <div class="cheat-item"><b>A lane reads one thing</b><span>Per commit reads code, nightly reads the real batch, release reads predictions. Put each test where its input is.</span></div>
+      <div class="cheat-item"><b>Commit + nightly</b><span>On Wrenfold's bench: 12 of 12 caught for 29 modelled units, no false alarms.</span></div>
+      <div class="cheat-item"><b>Spend on catches</b><span>Sort by bugs caught per unit. Reconciliation: 5 bugs for 3 units. INV: 1 bug for 20.</span></div>
+      <div class="cheat-item"><b>Thin rows</b><span>A bug with one test is one mute from shipping. Its second line must read something different.</span></div>
+      <div class="cheat-item"><b>Flaky = bar inside normal</b><span>Write the known-good value next to every threshold before you set it.</span></div>
+      <div class="cheat-item"><b>Red has three exits</b><span>Fix the code, fix or quarantine the data, move the bar in writing. An owner picks one. Never mute.</span></div>
+    </div>
+  </section>
+
+  <div class="callout next">
+    <span class="nx-pill">Where next</span>
+    <p>For testing as a craft in general, from green-suite lies to mutation testing and flakes, go to <a href="https://phoebefu6.github.io/learn-ai-qa-with-phoebe/courses/01-the-green-suite-lie.html">Learn AI QA</a>. To wire tonight's lanes into a real pipeline, <a href="https://phoebefu6.github.io/learn-dataops-with-phoebe/courses/b3-data-testing-contracts.html">Learn DataOps, b3</a>. For the metrics and validation design behind the holdout bar, <a href="https://phoebefu6.github.io/learn-model-evaluation-with-phoebe/courses/a1-why-one-number-lies.html">Learn Model Evaluation</a>. And for what to watch once the forecast is live, <a href="https://phoebefu6.github.io/learn-ml-production-with-phoebe/courses/05-monitor-what-you-will-act-on.html">Learn ML Production</a> and <a href="https://phoebefu6.github.io/learn-data-observability-with-phoebe/courses/b5-distribution-drift.html">Learn Data Observability</a>.</p>
+  </div>
+
+  <footer class="pagefoot">
+    <span>Session 6 of 6 · learn-testing-data-ml-code-with-phoebe · by Phoebe Fu &nbsp;·&nbsp; 📚 <a href="https://phoebefu6.github.io/learn-with-phoebe/">Learn with Phoebe ↗</a></span>
+    <span><a href="05-model-behaviour-tests.html">← Prev: Model behaviour tests</a> &nbsp;·&nbsp; <a href="../index.html">Course home →</a></span>
+  </footer>
+
+</main>
+
+<script src="../assets/tdm-sample.js?v=1"></script>
+<script src="../assets/tdm-live.js?v=1"></script>
+<script src="../assets/app.js?v=1"></script>
+</body>
+</html>

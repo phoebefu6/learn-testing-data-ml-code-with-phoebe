@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- social:start -->
+<meta name="description" content="Session 5 of 6. A holdout number cannot tell you what a model does. Minimum functionality, invariance and directional tests from CheckList, adapted to a real bike-demand forecast, and the ML Test Score rubric with the question it leaves open.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Learn with Phoebe">
+<meta property="og:title" content="Model behaviour tests - learn testing data ml code with phoebe">
+<meta property="og:description" content="Session 5 of 6. MFT, INV and DIR tests on a demand forecast, the ML Test Score's minimum-of-four scoring, and how much model testing a model needs.">
+<meta property="og:url" content="https://phoebefu6.github.io/learn-testing-data-ml-code-with-phoebe/courses/05-model-behaviour-tests.html">
+<meta property="og:image" content="https://phoebefu6.github.io/learn-testing-data-ml-code-with-phoebe/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Model behaviour tests - learn testing data ml code with phoebe">
+<meta name="twitter:description" content="Session 5 of 6. Test what the model does, not only its score: three behaviour tests on a real forecast.">
+<meta name="twitter:image" content="https://phoebefu6.github.io/learn-testing-data-ml-code-with-phoebe/assets/og-cover.png">
+<!-- social:end -->
+<title>Session 5 · Model behaviour tests - learn testing data ml code with phoebe</title>
+<link rel="stylesheet" href="../assets/style.css?v=1">
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="wrap">
+    <span class="crumb"><a href="../index.html">learn-testing-data-ml-code-with-phoebe</a> / Session 5 of 6</span>
+    <button class="btn" id="toggle-all" type="button">Expand all</button>
+    <button class="btn primary" id="zoom-toggle" type="button">Projector zoom: off</button>
+  </div>
+</div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="eyebrow">Learn Testing Data &amp; ML Code with Phoebe · Session 5 of 6</div>
+    <h1>Test what the model <span class="accent">does</span>, not only its score</h1>
+    <p class="sub">A holdout error tells you how far off the forecast was on average. It does not tell you whether the forecast expects more riders at 04:00 than at 08:00, whether loading the same file twice changes it, or whether closing a station makes that station's forecast fall. Tonight we borrow three test types from NLP, adapt them to Wrenfold's demand model, write them in pytest, and then look honestly at what they cost and what they catch.</p>
+    <div class="chip-row">
+      <span class="chip level">🟠 Stretch</span>
+      <span class="chip audience">Data, analytics and ML engineers who write pandas</span>
+      <span class="chip audience">You have fitted a model and shipped it on one number</span>
+      <span class="chip time">45 min</span>
+    </div>
+    <div class="agenda">
+      <span class="a1" style="flex:1">0-3 · Welcome</span>
+      <span class="a2" style="flex:4">3-18 · Three test types, three tests, one rubric</span>
+      <span class="a3" style="flex:5">18-40 · Build-along: behaviour tests on the forecast</span>
+      <span class="a4" style="flex:1">40-45 · Q&amp;A</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="section" id="intro">
+    <div class="section-kicker">
+      <span class="klabel">Part 0</span>
+      <h2>Where we start</h2>
+    </div>
+    <p class="lede">Session 4 ended with a slightly awkward result: on Wrenfold's twelve bugs, the cheapest set of six tests, costing 10 modelled units, catches everything, and none of the six ever looks at a prediction. So why spend a session on tests that read the model? Because the twelve bugs are the ones we planted, and your next bug is not on anyone's list. Behaviour tests are the only layer that checks what the forecast actually says. We carry on with the Constructed Wrenfold example: Wrenfold is invented; the trips it processes are real HSL Helsinki trips from May 2021, shared under CC BY 4.0.</p>
+
+    <div class="legend">
+      <span class="pill">🎫 Clear all three quiz questions to stamp your passport</span>
+      <span class="pill">Live = presented in the 45 minutes</span>
+      <span class="pill">Self-study = the full depth, after class</span>
+      <span class="pill">★ Build-along = do it yourself, in the page</span>
+    </div>
+
+    <div class="callout win">
+      <p><strong>★ What you walk out with tonight.</strong> Page five of Wrenfold's test plan: three behaviour tests on the demand model in pytest (a minimum functionality test, an invariance test and a directional test), each with the bug it fails on and its modelled cost, plus a constructed ML Test Score card showing which section of Wrenfold's testing sets its score.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-1">
+    <div class="section-kicker">
+      <span class="klabel">Part 1 · covers CheckList's MFT, INV and DIR tests</span>
+      <h2>Beyond the holdout number</h2>
+      <span class="tag concept">5 min live</span>
+    </div>
+    <p class="lede">In 2020 Ribeiro, Wu, Guestrin and Singh argued that held-out accuracy "often overestimates the performance" of NLP models: a model can score well on a test set and still fail at simple things a user would check first. Their answer, CheckList, borrows from software testing. Instead of one number, you write small tests of specific behaviours, and each test reads predictions directly. Three test types do most of the work.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 312" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Three columns, one per CheckList test type. MFT: a simple case with its expected output goes into the model, and the prediction must equal the expected output. INV: an input and a label-preserving change to it both go into the model, and the prediction must stay the same. DIR: a text plus an added negative phrase goes into the model, and the sentiment must not become more positive. The assertion box at the bottom of each column is filled teal.">
+        <defs>
+          <filter id="s5aSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="51" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="s5aHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#804F00" stroke-width="1" opacity=".5"/></pattern>
+          <marker id="s5aAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A1F12" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .s5aH { font: 800 12px Inter, sans-serif; fill: #2A1F12; }
+          .s5aL { font: 600 11px Inter, sans-serif; fill: #2A1F12; }
+          .s5aS { font: 400 11px Inter, sans-serif; fill: #5E5243; }
+          .s5aA { font: 700 11px Inter, sans-serif; fill: #804F00; }
+          .s5aN { font: 400 12px Inter, sans-serif; fill: #5E5243; }
+        </style>
+
+        <text class="s5aA" x="30" y="26">THREE WAYS TO READ A PREDICTION</text>
+        <text class="s5aS" x="290" y="26">definitions from Ribeiro et al. 2020 (CheckList, ACL)</text>
+
+        <g filter="url(#s5aSk)" fill="none" stroke="#2A1F12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="30" y="64" width="260" height="56" rx="10" transform="rotate(-0.6 160 92)" fill="#FFFFFF"/>
+          <rect x="310" y="64" width="260" height="56" rx="10" transform="rotate(0.5 440 92)" fill="url(#s5aHc)"/>
+          <rect x="590" y="64" width="260" height="56" rx="10" transform="rotate(-0.4 720 92)" fill="#FFFFFF"/>
+          <path d="M160 122 L160 142" marker-end="url(#s5aAr)"/>
+          <path d="M440 122 L440 142" marker-end="url(#s5aAr)"/>
+          <path d="M720 122 L720 142" marker-end="url(#s5aAr)"/>
+          <rect x="110" y="146" width="100" height="34" rx="8" transform="rotate(1.5 160 163)" fill="#FBF3E4"/>
+          <rect x="390" y="146" width="100" height="34" rx="8" transform="rotate(-1.5 440 163)" fill="#FBF3E4"/>
+          <rect x="670" y="146" width="100" height="34" rx="8" transform="rotate(1.2 720 163)" fill="#FBF3E4"/>
+          <path d="M160 182 L160 202" marker-end="url(#s5aAr)"/>
+          <path d="M440 182 L440 202" marker-end="url(#s5aAr)"/>
+          <path d="M720 182 L720 202" marker-end="url(#s5aAr)"/>
+          <rect x="30" y="206" width="260" height="56" rx="10" transform="rotate(0.4 160 234)" fill="#7DD3C6"/>
+          <rect x="310" y="206" width="260" height="56" rx="10" transform="rotate(-0.5 440 234)" fill="#7DD3C6"/>
+          <rect x="590" y="206" width="260" height="56" rx="10" transform="rotate(0.6 720 234)" fill="#7DD3C6"/>
+          <circle cx="842" cy="22" r="7"/>
+          <path d="M847 27 L854 34"/>
+        </g>
+
+        <text class="s5aH" x="30" y="52">MFT · minimum functionality</text>
+        <text class="s5aH" x="310" y="52">INV · invariance</text>
+        <text class="s5aH" x="590" y="52">DIR · directional</text>
+
+        <text class="s5aL" x="44" y="88">a simple case</text>
+        <text class="s5aS" x="44" y="106">with the output you expect</text>
+        <text class="s5aL" x="324" y="88">an input, and the same input</text>
+        <text class="s5aS" x="324" y="106">after a label-preserving change</text>
+        <text class="s5aL" x="604" y="88">a text, and the same text</text>
+        <text class="s5aS" x="604" y="106">with a negative phrase added</text>
+
+        <text class="s5aL" x="160" y="168" text-anchor="middle">model</text>
+        <text class="s5aL" x="440" y="168" text-anchor="middle">model</text>
+        <text class="s5aL" x="720" y="168" text-anchor="middle">model</text>
+
+        <text class="s5aH" x="44" y="230">prediction = expected</text>
+        <text class="s5aL" x="44" y="248">like a unit test, on the model</text>
+        <text class="s5aH" x="324" y="230">prediction stays the same</text>
+        <text class="s5aL" x="324" y="248">the change must not matter</text>
+        <text class="s5aH" x="604" y="230">sentiment must not rise</text>
+        <text class="s5aL" x="604" y="248">one known direction, or none</text>
+
+        <text class="s5aN" x="30" y="294">All three read predictions. A holdout score reads an average error and none of these behaviours.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - each test fixes one input change and states what the prediction must do about it</figcaption>
+    </figure>
+
+    <details class="card" open>
+      <summary><span class="mode live">Live</span>Three test types from CheckList<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p><strong>Minimum functionality test (MFT).</strong> Described in the paper as "inspired by unit tests in software engineering": a collection of simple examples, each with its label, that checks one behaviour. If the model cannot get the easy cases right, its overall accuracy is hiding something.</p>
+        <p><strong>Invariance test (INV).</strong> Apply a label-preserving perturbation to the input and expect the prediction to stay the same. The test does not need to know the right answer, only that the change should not move it.</p>
+        <p><strong>Directional expectation test (DIR).</strong> Change the input in a way whose effect has a known direction, and expect the prediction to move that way. CheckList's own example: adding a negative phrase to a text must not make its sentiment more positive. Again, no exact label is needed, only the direction.</p>
+        <p>Source: Ribeiro, M. T., Wu, T., Guestrin, C. and Singh, S. (2020). "Beyond Accuracy: Behavioral Testing of NLP Models with CheckList". ACL 2020, 4902-4912. It won the conference's Best Overall Paper award.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Our adaptation to a tabular demand forecast<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>CheckList is an NLP method. Applying MFT, INV and DIR to a bike-demand forecast is our adaptation, not something the paper tested, so treat the mapping as a design choice you can argue with. The translation we use for the Constructed Wrenfold example:</p>
+        <table class="clean">
+          <tr><th>Test type</th><th>The behaviour we pin on Wrenfold's forecast</th></tr>
+          <tr><td>MFT</td><td>On a weekday, every station's forecast for 04:00 is below its forecast for 08:00. Anyone who has seen a city at 04:00 knows the answer.</td></tr>
+          <tr><td>INV</td><td>Loading the same source file a second time changes no prediction. A re-run is a label-preserving change to the input.</td></tr>
+          <tr><td>DIR</td><td>If station 030 is closed, its own forecast falls to 10% or less of what it was. The direction is known, the exact value is not.</td></tr>
+        </table>
+        <p>What carries over intact is the idea that matters: each test states a behaviour a domain expert would sign, and reads the prediction to check it.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>Twice the tests, almost three times the bugs.</strong> In the CheckList paper's user study, practitioners working with CheckList created twice as many tests and found almost three times as many bugs as users without it. The authors also report a team responsible for a commercial sentiment model, already extensively tested, that found new and actionable bugs once they wrote behaviour tests. The model had passed its held-out evaluation; the bugs were in behaviours the evaluation never asked about.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-2">
+    <div class="section-kicker">
+      <span class="klabel">Part 2 · covers MFT, INV and DIR on the demand model</span>
+      <h2>Three behaviour tests on Wrenfold's forecast</h2>
+      <span class="tag concept">6 min live</span>
+    </div>
+    <p class="lede">Wrenfold's model is deliberately plain (Constructed Wrenfold example): for each of the five busiest stations, the average number of departures per hour of day, separately for weekdays and weekends, fitted on 1-21 May and scored on 22-31 May. Plain is good here. A behaviour test on a simple model is easy to reason about, and every number below is one the bench engine prints when it runs on the real HSL trips.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 388" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Station 030's fitted weekday forecast at 04:00 and 08:00, in departures per hour. Clean pipeline: 0.07 at 04:00 and 6.93 at 08:00, so the MFT 04:00 below 08:00 passes. Timezone bug: 0.20 at 04:00 and 0.00 at 08:00, so the MFT fails and the bug is caught.">
+        <defs>
+          <filter id="s5bSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="53" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="s5bHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#804F00" stroke-width="1" opacity=".5"/></pattern>
+        </defs>
+        <style>
+          .s5bH { font: 800 12px Inter, sans-serif; fill: #2A1F12; }
+          .s5bL { font: 600 12px Inter, sans-serif; fill: #2A1F12; }
+          .s5bS { font: 400 11px Inter, sans-serif; fill: #5E5243; }
+          .s5bV { font: 800 16px Inter, sans-serif; fill: #5A3700; }
+          .s5bB { font: 800 11px Inter, sans-serif; fill: #0B5A50; }
+          .s5bR { font: 800 11px Inter, sans-serif; fill: #991B1B; }
+          .s5bA { font: 700 11px Inter, sans-serif; fill: #804F00; }
+          .s5bN { font: 400 12px Inter, sans-serif; fill: #5E5243; }
+        </style>
+
+        <text class="s5bA" x="40" y="26">STATION 030 · FITTED WEEKDAY FORECAST · DEPARTURES PER HOUR</text>
+        <text class="s5bS" x="40" y="42">Constructed Wrenfold example; real HSL Helsinki trips, May 2021</text>
+
+        <g filter="url(#s5bSk)" fill="none" stroke="#2A1F12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="40" y="56" width="380" height="226" rx="12" transform="rotate(-0.3 230 169)" fill="#FFFFFF"/>
+          <rect x="460" y="56" width="380" height="226" rx="12" transform="rotate(0.3 650 169)" fill="#FFFFFF" stroke="#991B1B"/>
+          <path d="M70 240 L390 240"/>
+          <path d="M490 240 L810 240"/>
+          <rect x="120" y="238.6" width="60" height="1.4" fill="url(#s5bHc)"/>
+          <rect x="260" y="101.4" width="60" height="138.6" rx="3" transform="rotate(-0.5 290 170)" fill="url(#s5bHc)"/>
+          <rect x="540" y="236" width="60" height="4" fill="#FCA5A5" stroke="#991B1B"/>
+          <path d="M680 239 L740 239" stroke="#991B1B" stroke-width="3"/>
+          <rect x="40" y="298" width="380" height="48" rx="10" transform="rotate(0.4 230 322)" fill="#7DD3C6"/>
+          <rect x="460" y="298" width="380" height="48" rx="10" transform="rotate(-0.4 650 322)" fill="#FEF2F2" stroke="#991B1B"/>
+        </g>
+
+        <text class="s5bH" x="56" y="78">Clean pipeline</text>
+        <text class="s5bH" x="476" y="78">Timezone bug (+3 h)</text>
+
+        <text class="s5bV" x="150" y="228" text-anchor="middle">0.07</text>
+        <text class="s5bV" x="290" y="94" text-anchor="middle">6.93</text>
+        <text class="s5bV" x="570" y="226" text-anchor="middle">0.20</text>
+        <text class="s5bV" x="710" y="226" text-anchor="middle">0.00</text>
+
+        <text class="s5bS" x="150" y="258" text-anchor="middle">04:00</text>
+        <text class="s5bS" x="290" y="258" text-anchor="middle">08:00</text>
+        <text class="s5bS" x="570" y="258" text-anchor="middle">04:00</text>
+        <text class="s5bS" x="710" y="258" text-anchor="middle">08:00</text>
+
+        <text class="s5bL" x="56" y="318">MFT: is 0.07 below 6.93?</text>
+        <text class="s5bB" x="56" y="335">yes · pass</text>
+        <text class="s5bL" x="476" y="318">MFT: is 0.20 below 0.00?</text>
+        <text class="s5bR" x="476" y="335">no · test fails · timezone bug caught</text>
+
+        <text class="s5bN" x="40" y="372">Every trip lands three hours late, so the 08:00 slot holds 05:00's traffic. The holdout error barely moves.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - two predictions and one comparison are enough to catch a bug the holdout error scores at 1.9098 against a clean 1.9113</figcaption>
+    </figure>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>MFT: 04:00 below 08:00 on a weekday, every station<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>The test asks the fitted model for Monday 24 May at 04:00 and at 08:00, through the serving path, for each of the five forecast stations (030, 126, 113, 041, 021), and asserts the early hour is lower. On the clean run, station 030's forecast is 0.07 departures at 04:00 and 6.93 at 08:00: pass.</p>
+        <p><strong>What it catches on the bench.</strong> The timezone bug, where local Helsinki times are parsed as UTC and every trip moves three hours: 030's forecast becomes 0.20 at 04:00 and 0.00 at 08:00, and the test fails. And train/serve skew, where serving computes the hour three hours earlier than training did, so the request for 08:00 reads the model's 05:00 slot. Both bugs leave every row valid; the timezone bug even leaves the holdout error essentially unchanged at 1.9098. Only a test that asks the model a question with an obvious answer notices.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>INV: load the file again, nothing changes<span class="mini">1 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>A re-run of the load is a label-preserving change: the trips did not happen twice because a job ran twice. So the test runs the whole pipeline on the normal load and on a load where the file arrived a second time, and asserts every prediction for 22-31 May is equal to within 1e-9.</p>
+        <p><strong>What it catches on the bench.</strong> Duplicated trips. With the de-duplication step missing, the second load doubles every count again, and every prediction changes. With de-duplication in place, the extra copies are dropped and nothing moves. The test reads predictions, but what it really pins is that the pipeline is idempotent.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>DIR: close station 030, its forecast must fall to 10% or less<span class="mini">1 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Remove every trip that departs station 030, re-run the pipeline, refit, and compare 030's mean forecast over 22-31 May with what it was before. The direction is certain: no departures, so the forecast must fall. The test allows anything at or below 10% of the original.</p>
+        <p><strong>What it catches on the bench.</strong> Label shift, where the aggregation counts arrivals instead of departures. Closing 030 removes its departures, but trips from the other four stations keep ending at 030, so the arrivals it is now counting still arrive. The forecast does not fall and the test fails. The holdout error, meanwhile, drops to 0.3277: the bug looks like an improvement.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>Behaviour tests are not metrics<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Wrenfold's holdout test fails when the forecast error on 22-31 May goes above 2.2 trips per station-hour. The clean error is 1.9113. Three bugs pass that bar because they make the error lower: target leakage scores 1.7409, label shift 0.3277 and type coercion 0.9319. A metric threshold measures how close the predictions were to the targets. It has no view on whether the targets were the right thing to predict, or whether the model saw them while fitting.</p>
+        <p>A behaviour test asks a different question: does the model behave the way the domain says it must, whatever its average error? That is why the two kinds complement each other rather than compete. Choosing the metric, the split and the validation design is its own craft; it is taught in <a href="https://phoebefu6.github.io/learn-model-evaluation-with-phoebe/courses/a1-why-one-number-lies.html">Learn Model Evaluation, a1</a>. Here we only need the consequence: a bug that flatters the metric needs a test that does not read the metric.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>Training-serving skew, as Google defines it.</strong> Martin Zinkevich's Rules of Machine Learning defines training-serving skew as "a difference between performance during training and performance during serving", and lists its causes. The first is a difference in how data is handled in the training and serving pipelines, which is exactly Wrenfold's serve-skew bug: the same hour of day computed two ways. The rules recommend re-using code between training and serving (Rule 32). The MFT is the check that tells you when you did not.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-3">
+    <div class="section-kicker">
+      <span class="klabel">Part 3 · covers the ML Test Score and the open question</span>
+      <h2>How much model testing before a model earns its keep?</h2>
+      <span class="tag concept">4 min live</span>
+    </div>
+    <p class="lede">Behaviour tests are one part of testing an ML system. Breck and colleagues at Google wrote down the rest as a rubric, the ML Test Score, and gave it an unusual way of adding up. The rubric is well cited. How far down it a young model should go is not settled, and the honest move is to show you both sides.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 340" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The ML Test Score mechanism with a constructed Wrenfold scorecard. Each test earns half a point if run manually with results documented and distributed, a full point if automated and repeated. Points are summed per section: features and data 4.0, model development 2.5, ML infrastructure 2.0, monitoring 0.5. The final score is the minimum of the four, 0.5, so the weakest section, monitoring, sets the score.">
+        <defs>
+          <filter id="s5cSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="57" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="s5cAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A1F12" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .s5cH { font: 800 12px Inter, sans-serif; fill: #2A1F12; }
+          .s5cL { font: 600 11px Inter, sans-serif; fill: #2A1F12; }
+          .s5cS { font: 400 11px Inter, sans-serif; fill: #5E5243; }
+          .s5cV { font: 800 18px Inter, sans-serif; fill: #5A3700; }
+          .s5cR { font: 800 11px Inter, sans-serif; fill: #991B1B; }
+          .s5cA { font: 700 11px Inter, sans-serif; fill: #804F00; }
+          .s5cC { font: 700 11px ui-monospace, Menlo, monospace; fill: #2A1F12; }
+          .s5cN { font: 400 12px Inter, sans-serif; fill: #5E5243; }
+        </style>
+
+        <text class="s5cA" x="30" y="26">ML TEST SCORE · HOW IT ADDS UP</text>
+        <text class="s5cS" x="260" y="26">a constructed Wrenfold scorecard; your numbers will differ</text>
+
+        <g filter="url(#s5cSk)" fill="none" stroke="#2A1F12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="30" y="44" width="300" height="34" rx="8" transform="rotate(-0.5 180 61)" fill="#FBF3E4"/>
+          <rect x="350" y="44" width="300" height="34" rx="8" transform="rotate(0.5 500 61)" fill="#FBF3E4"/>
+          <rect x="30" y="104" width="190" height="96" rx="10" transform="rotate(-0.6 125 152)" fill="#FFFFFF"/>
+          <rect x="240" y="104" width="190" height="96" rx="10" transform="rotate(0.5 335 152)" fill="#FFFFFF"/>
+          <rect x="450" y="104" width="190" height="96" rx="10" transform="rotate(-0.4 545 152)" fill="#FFFFFF"/>
+          <rect x="660" y="104" width="190" height="96" rx="10" transform="rotate(0.6 755 152)" fill="#FEF2F2" stroke="#991B1B"/>
+          <path d="M125 204 L300 240" marker-end="url(#s5cAr)"/>
+          <path d="M335 204 L380 238" marker-end="url(#s5cAr)"/>
+          <path d="M545 204 L500 238" marker-end="url(#s5cAr)"/>
+          <path d="M755 204 L580 240" marker-end="url(#s5cAr)"/>
+          <rect x="280" y="244" width="320" height="56" rx="12" transform="rotate(-0.5 440 272)" fill="#7DD3C6"/>
+        </g>
+
+        <text class="s5cL" x="44" y="66">run by hand, results shared: 0.5 point</text>
+        <text class="s5cL" x="364" y="66">automated, runs repeatedly: 1 point</text>
+        <text class="s5cS" x="670" y="66">28 tests in 4 sections</text>
+
+        <text class="s5cH" x="44" y="128">Features and data</text>
+        <text class="s5cV" x="44" y="156">4.0</text>
+        <text class="s5cS" x="44" y="182">schema captured, automated</text>
+
+        <text class="s5cH" x="254" y="128">Model development</text>
+        <text class="s5cV" x="254" y="156">2.5</text>
+        <text class="s5cS" x="254" y="182">MFT, INV, DIR in pytest</text>
+
+        <text class="s5cH" x="464" y="128">ML infrastructure</text>
+        <text class="s5cV" x="464" y="156">2.0</text>
+        <text class="s5cS" x="464" y="182">integration tested by hand</text>
+
+        <text class="s5cH" x="674" y="128">Monitoring</text>
+        <text class="s5cV" x="674" y="156">0.5</text>
+        <text class="s5cR" x="674" y="182">one skew check, by hand</text>
+
+        <text class="s5cC" x="296" y="266">score = min(4.0, 2.5, 2.0, 0.5)</text>
+        <text class="s5cH" x="296" y="288">= 0.5 · monitoring sets it</text>
+
+        <text class="s5cN" x="30" y="326">Raising the strong sections does not move the score. Only the weakest one does. That is the design.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - a minimum, not a sum: the rubric refuses to let strength in one section hide an empty one</figcaption>
+    </figure>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>The rubric<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>The ML Test Score lists 28 specific tests and monitoring needs in four sections: features and data, model development, ML infrastructure and monitoring. A few of the items, in the paper's words: "Feature expectations are captured in a schema" opens the data list; the infrastructure list includes "The ML pipeline is integration tested" and "Model quality is validated before serving"; the monitoring list, seven tests long, includes "Training and serving are not skewed".</p>
+        <p><strong>Scoring.</strong> Half a point for a test run manually with the results documented and distributed; a full point for a test that runs automatically on a repeated basis. Points are summed per section, and the final score is the minimum of the four section sums. The authors weight every test the same on purpose: "the relative importance of tests to teams will vary depending on their specific priorities".</p>
+        <p><strong>Reading the number.</strong> The paper's interpretation table runs from 0, "More of a research project than a productionized system", through intermediate bands, to strong automated testing in the band above 3 and up to 5, and exceptional above 5. Read the paper for the wording of the middle bands.</p>
+        <p>Source: Breck, E., Cai, S., Nielsen, E., Salib, M. and Sculley, D. (2017). "The ML Test Score: A Rubric for ML Production Readiness and Technical Debt Reduction". IEEE Big Data 2017.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>The disagreement<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p><strong>Side A: test the model, and raise the weakest section.</strong> Breck and colleagues found ML-specific tests to be non-obvious and under-implemented: in their survey of several dozen teams, none of the 28 tests was implemented by more than 80% of teams. Their prescription is to score the whole system and keep raising the minimum section, because the gaps are where production surprises come from.</p>
+        <p><strong>Side B: earn the model first.</strong> Zinkevich's Rule 1 is "Don't be afraid to launch a product without machine learning", and Rule 4 is "Keep the first model simple and get the infrastructure right." On this view, heavy model testing on a first model that may be replaced next quarter is spend before evidence. Breck and colleagues concede part of this themselves: their interpretation table notes that different systems at different points in their development may reasonably aim at different points on the scale.</p>
+        <p><strong>What nobody has measured.</strong> We found no study that measures the payoff curve: how many production incidents each additional point of ML testing prevents, at what cost, for which kind of system. Without it, the right level for your model is a judgement about its stakes and its life expectancy, not a number you can look up.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>What the bench says, and what it cannot say<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p><strong>What it says.</strong> On the session 4 bench, the step from "+ data checks" to all 17 tests adds the three behaviour tests and the holdout test, and costs 50 more modelled units (29 to 79). It catches no extra bug: 12 caught, 0 shipping, 0 false alarms before and after. Each behaviour test does catch something (the MFT catches timezone and serve skew, the INV catches duplicated trips, the DIR catches label shift), but every one of those bugs is also caught by a test in the cheapest set of six. On this list, behaviour tests add no catch.</p>
+        <p><strong>What it cannot say.</strong> The list has twelve bugs and we planted all of them, so the cheapest set was computed knowing the answers. A real team does not know its next bug. The behaviour tests are the only tests on the bench that read predictions, which means they are the only ones that would notice a bug in a place no unit test or data check looks, such as a model change that turns the rush hour upside down while every row stays clean. Whether that insurance is worth 40 modelled units for your model is exactly the open question above.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>Thirty-six teams across Google.</strong> Breck and colleagues did not write the rubric from an armchair: they met with 36 teams across Google while developing it, and surveyed several dozen. The finding that no test was implemented by more than 80% of teams came from organisations with strong general testing habits, which is the point: knowing how to test software does not tell you which tests an ML system needs.</p>
+    </div>
+  </section>
+
+  <section class="section" id="demo-1">
+    <div class="section-kicker">
+      <span class="klabel">Build-along</span>
+      <h2>Three behaviour tests on Wrenfold's demand model</h2>
+      <span class="tag demo">★ 22 min · everyone builds</span>
+    </div>
+    <p class="lede">We write the three tests as pytest code against the same functions the bench engine runs (Constructed Wrenfold example; the trips are real HSL rows from May 2021). Read and edit each box in the page; running it locally is Self-study. The DIR test is the one worth drawing first, because it shows why a prediction can expose what a row count cannot.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The DIR test as a flow. Change the input by removing station 030's departing trips, re-run the pipeline and refit, then assert that 030's mean forecast is at most 10 percent of before. With the clean pipeline, the model counts departures, 030 now has none, and the forecast falls to 0, so the test passes. With label shift, the model counts arrivals, trips from the other four stations still end at 030, the forecast does not fall, and the test fails: the bug is caught.">
+        <defs>
+          <filter id="s5dSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="59" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="s5dHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#804F00" stroke-width="1" opacity=".5"/></pattern>
+          <marker id="s5dAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A1F12" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .s5dH { font: 800 12px Inter, sans-serif; fill: #2A1F12; }
+          .s5dL { font: 600 11px Inter, sans-serif; fill: #2A1F12; }
+          .s5dS { font: 400 11px Inter, sans-serif; fill: #5E5243; }
+          .s5dB { font: 800 11px Inter, sans-serif; fill: #0B5A50; }
+          .s5dR { font: 800 11px Inter, sans-serif; fill: #991B1B; }
+          .s5dA { font: 700 11px Inter, sans-serif; fill: #804F00; }
+          .s5dN { font: 400 12px Inter, sans-serif; fill: #5E5243; }
+        </style>
+
+        <text class="s5dA" x="30" y="26">THE DIR TEST · CLOSE STATION 030</text>
+
+        <g filter="url(#s5dSk)" fill="none" stroke="#2A1F12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="30" y="44" width="240" height="64" rx="10" transform="rotate(-0.6 150 76)" fill="url(#s5dHc)"/>
+          <rect x="320" y="44" width="240" height="64" rx="10" transform="rotate(0.5 440 76)" fill="#FBF3E4"/>
+          <rect x="610" y="44" width="240" height="64" rx="10" transform="rotate(-0.4 730 76)" fill="#7DD3C6"/>
+          <path d="M272 76 L314 76" marker-end="url(#s5dAr)"/>
+          <path d="M562 76 L604 76" marker-end="url(#s5dAr)"/>
+
+          <rect x="30" y="148" width="240" height="50" rx="10" transform="rotate(0.5 150 173)" fill="#FFFFFF"/>
+          <rect x="320" y="148" width="240" height="50" rx="10" transform="rotate(-0.5 440 173)" fill="#FFFFFF"/>
+          <rect x="610" y="148" width="240" height="50" rx="10" transform="rotate(0.4 730 173)" fill="#FFFFFF"/>
+          <path d="M272 173 L314 173" marker-end="url(#s5dAr)"/>
+          <path d="M562 173 L604 173" marker-end="url(#s5dAr)"/>
+
+          <rect x="30" y="218" width="240" height="50" rx="10" transform="rotate(-0.4 150 243)" fill="#FFFFFF" stroke="#991B1B"/>
+          <rect x="320" y="218" width="240" height="50" rx="10" transform="rotate(0.4 440 243)" fill="#FFFFFF" stroke="#991B1B"/>
+          <rect x="610" y="218" width="240" height="50" rx="10" transform="rotate(-0.5 730 243)" fill="#FEF2F2" stroke="#991B1B"/>
+          <path d="M272 243 L314 243" marker-end="url(#s5dAr)"/>
+          <path d="M562 243 L604 243" marker-end="url(#s5dAr)"/>
+        </g>
+
+        <text class="s5dH" x="44" y="70">1 · change the input</text>
+        <text class="s5dL" x="44" y="90">remove trips departing 030</text>
+        <text class="s5dH" x="334" y="70">2 · re-run and refit</text>
+        <text class="s5dL" x="334" y="90">clean, aggregate, fit 1-21 May</text>
+        <text class="s5dH" x="624" y="70">3 · read the prediction</text>
+        <text class="s5dL" x="624" y="90">030 mean after &lt;= 10% of before</text>
+
+        <text class="s5dA" x="30" y="138">WHAT HAPPENS, BY PIPELINE</text>
+
+        <text class="s5dH" x="44" y="170">Clean pipeline</text>
+        <text class="s5dS" x="44" y="186">counts departures per station</text>
+        <text class="s5dL" x="334" y="170">030 departs nothing now</text>
+        <text class="s5dS" x="334" y="186">its counts are all 0</text>
+        <text class="s5dL" x="624" y="170">forecast falls to 0</text>
+        <text class="s5dB" x="624" y="186">pass</text>
+
+        <text class="s5dH" x="44" y="240">Label shift bug</text>
+        <text class="s5dS" x="44" y="256">counts arrivals instead</text>
+        <text class="s5dL" x="334" y="240">trips from 126, 113, 041, 021</text>
+        <text class="s5dS" x="334" y="256">still end at 030</text>
+        <text class="s5dL" x="624" y="240">forecast does not fall</text>
+        <text class="s5dR" x="624" y="256">test fails · caught</text>
+
+        <text class="s5dN" x="30" y="300">The test reads a prediction, so it sees what the target means. The holdout error under this bug: 0.3277.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - a known direction is enough: the test never needs the right forecast, only that closing a station lowers it</figcaption>
+    </figure>
+
+    <div class="steps">
+      <div class="step">
+        <p><strong>Read the model interface.</strong> This is the Python form of the bench engine's <code>train_feat</code>, <code>serve_feat</code>, <code>fit</code> and <code>predict</code>, simplified to the clean path. The model fits on 1-21 May; a prediction for any station-hour goes through the serving features, which is where the serve-skew bug lives. <code>clean</code> and <code>aggregate</code> are the session 2 and 3 functions.</p>
+        <div class="prompt-box good"><span class="label">★ Step 1 · wrenfold_model.py, the model interface</span># Constructed Wrenfold example: the forecast behind the tests
+FORECAST_STATIONS = ["030", "126", "113", "041", "021"]
+WEEKEND = {1, 2, 8, 9, 15, 16, 22, 23, 29, 30}   # May 2021 weekend days
+TRAIN_LAST_DAY = 21                               # fit on 1-21 May
+HOURS = 744                                       # 31 days x 24 hours
+
+def day_of(h):
+    return h // 24 + 1
+
+def train_feat(h):
+    return (1 if day_of(h) in WEEKEND else 0, h % 24)
+
+def serve_feat(h):
+    return train_feat(h)   # the serve-skew bug computes (h - 3) % 24 here
+
+def fit(agg, last_day=TRAIN_LAST_DAY):
+    """Average departures per station, per day type, per hour of day."""
+    model = {}
+    for s, counts in agg.items():
+        sums = [[0.0] * 24, [0.0] * 24]
+        cnts = [[0] * 24, [0] * 24]
+        for d in range(1, last_day + 1):
+            for hod in range(24):
+                h = (d - 1) * 24 + hod
+                dt, _ = train_feat(h)
+                sums[dt][hod] += counts[h]
+                cnts[dt][hod] += 1
+        model[s] = [[sums[dt][hod] / cnts[dt][hod] for hod in range(24)]
+                    for dt in (0, 1)]
+    return model
+
+def predict(model, s, h):
+    dt, hod = serve_feat(h)   # serving features, never the training ones
+    return model[s][dt][hod]
+
+def run(raw, sample):
+    """raw trips -&gt; clean -&gt; station-hour counts -&gt; fit -&gt; predict 22-31 May"""
+    c = clean(raw, sample)
+    agg = aggregate(c["rows"], FORECAST_STATIONS)
+    model = fit(agg)
+    preds = {s: [predict(model, s, h) for h in range(TRAIN_LAST_DAY * 24, HOURS)]
+             for s in agg}
+    return {"model": model, "preds": preds}</div>
+      </div>
+      <div class="step">
+        <p><strong>Write the fixtures and the MFT.</strong> Fitting the model is the expensive part, so the clean run is a module-scoped fixture that every test shares. The MFT then asks two questions per station. Hour 23 x 24 + 4 is Monday 24 May at 04:00, a weekday inside the scored period.</p>
+        <div class="prompt-box good"><span class="label">★ Step 2 · conftest.py and test_mft</span># conftest.py
+import pytest
+from wrenfold_pipeline import load_sample, raw_rows
+from wrenfold_model import run
+
+@pytest.fixture(scope="module")
+def sample():
+    return load_sample("assets/tdm-sample.js")
+
+@pytest.fixture(scope="module")
+def clean_run(sample):
+    return run(raw_rows(sample), sample)   # the file as published: every row twice
+
+# test_behaviour.py
+from wrenfold_model import predict
+
+MON_04 = 23 * 24 + 4   # Monday 24 May, 04:00
+MON_08 = 23 * 24 + 8   # Monday 24 May, 08:00
+
+def test_mft_early_morning_below_rush_hour(clean_run):
+    model = clean_run["model"]
+    for s in clean_run["preds"]:                       # every forecast station
+        assert predict(model, s, MON_04) &lt; predict(model, s, MON_08), s</div>
+      </div>
+      <div class="step">
+        <p><strong>Write the INV.</strong> <code>raw_rows(sample, copies=4)</code> rebuilds the load as if the job had run twice: every line arrives four times instead of the file's usual two. With de-duplication working, nothing should change. The tolerance is 1e-9 because predictions are floating-point averages.</p>
+        <div class="prompt-box good"><span class="label">★ Step 3 · test_inv</span>from wrenfold_pipeline import raw_rows
+from wrenfold_model import run
+
+def test_inv_loading_the_file_twice_changes_nothing(sample, clean_run):
+    reloaded = run(raw_rows(sample, copies=4), sample)   # the load ran twice
+    assert reloaded["preds"].keys() == clean_run["preds"].keys()
+    for s, before in clean_run["preds"].items():
+        after = reloaded["preds"][s]
+        assert all(abs(a - b) &lt; 1e-9 for a, b in zip(before, after)), s</div>
+      </div>
+      <div class="step">
+        <p><strong>Write the DIR.</strong> <code>drop_station</code> removes every trip departing 030 before the pipeline sees it. The first assert guards against a vacuous pass: if 030's forecast were already 0, "falls to 10% or less" would be true and mean nothing.</p>
+        <div class="prompt-box good"><span class="label">★ Step 4 · test_dir</span>CLOSED = "030"
+
+def mean(xs):
+    return sum(xs) / len(xs)
+
+def test_dir_closing_030_lowers_its_forecast(sample, clean_run):
+    closed = run(raw_rows(sample, drop_station=CLOSED), sample)
+    before = mean(clean_run["preds"][CLOSED])
+    after = mean(closed["preds"][CLOSED])
+    assert before &gt; 0
+    assert after &lt;= 0.1 * before</div>
+      </div>
+      <div class="step">
+        <p><strong>Price them, then predict the bench.</strong> Each test re-runs some or all of the pipeline, so they are the dearest tests Wrenfold has. Before you look back at session 4's catch matrix, write down which bugs you expect each to fail on, and whether any of those bugs would ship without it.</p>
+        <div class="prompt-box good"><span class="label">★ Step 5 · Wrenfold's test plan, page five (modelled cost units)</span>WRENFOLD TEST PLAN v0, behaviour tests (constructed)
+test        cost   reads                     bench: fails on
+b_mft         8    04:00 vs 08:00 forecast   timezone, train/serve skew
+b_inv        20    predictions, load twice   duplicated trips
+b_dir        12    030 forecast, 030 closed  label shift
+             --
+             40    the dearest three tests on the bench
+
+Also caught by the cheapest set of six (10 units):
+  timezone       -&gt; u_bucket
+  serve skew     -&gt; u_parity
+  duplicated     -&gt; d_reconcile
+  label shift    -&gt; d_reconcile
+On this list: no extra catch. Keep them anyway?  ____________
+Your reason: _____________________________________________</div>
+      </div>
+    </div>
+
+    <div class="callout tip">
+      <p><strong>Write the behaviour before the code that might break it.</strong> "04:00 is quieter than 08:00 on a weekday" and "closing a station lowers its forecast" are sentences an operations lead would sign without reading any Python. That is what makes a behaviour test durable: it survives a model rewrite, because it pins what the forecast must do, not how it does it.</p>
+    </div>
+  </section>
+
+  <section class="section" id="exercise">
+    <div class="section-kicker">
+      <span class="klabel">Homework</span>
+      <h2>Before session 6</h2>
+      <span class="tag exercise">30 min</span>
+    </div>
+    <ol>
+      <li><strong>Finish page five of Wrenfold's test plan</strong> from step 5: fill in whether you keep the three behaviour tests and the reason, in one line each.</li>
+      <li><strong>Write one MFT, one INV and one DIR for a model you own.</strong> One sentence each, in words a domain expert would sign, before any code. If you cannot find a DIR, say what direction you would need to know.</li>
+      <li><strong>Score one of your systems on the ML Test Score.</strong> Half a point manual, a full point automated, sum per section, take the minimum. Name the section that sets the score.</li>
+      <li><strong>Take a side.</strong> For that same system, write three sentences on whether the next unit of testing effort should go to raising the weakest section or to shipping a simpler model first. Bring it to session 6.</li>
+    </ol>
+  </section>
+
+  <section class="section" id="quiz">
+    <div class="section-kicker">
+      <span class="klabel">Check yourself</span>
+      <h2>Three questions</h2>
+    </div>
+    <p>Clear all three and session 5 gets stamped in your passport.</p>
+
+    <div class="quiz-q" data-answer="2">
+      <p class="qtext">1 · Wrenfold's holdout test fails when the forecast error goes above 2.2. With label shift planted, the error is 0.3277 against a clean 1.9113. Why can the threshold never catch this bug?</p>
+      <button class="qopt" type="button">A · 2.2 is too loose; a threshold of 0.3 would catch it</button>
+      <button class="qopt" type="button">B · Label shift only affects weekends, which the holdout skips</button>
+      <button class="qopt" type="button">C · The bug changes what the target means and the new target is easier to predict, so the error falls; a threshold that fails on rising error cannot fail on a falling one</button>
+      <button class="qopt" type="button">D · The holdout test runs before the model is fitted</button>
+      <p class="qwhy">A metric compares predictions with targets; it cannot tell you the targets are the wrong thing. The DIR test, which reads what happens when a station closes, does notice.</p>
+    </div>
+
+    <div class="quiz-q" data-answer="0">
+      <p class="qtext">2 · Wrenfold's INV test runs the pipeline on the normal load and on a load where the file arrived twice, and asserts the predictions are equal within 1e-9. Which bug does it catch?</p>
+      <button class="qopt" type="button">A · Duplicated trips: without de-duplication the second load changes every count, so every prediction moves</button>
+      <button class="qopt" type="button">B · Target leakage, because the second load includes 22-31 May</button>
+      <button class="qopt" type="button">C · The timezone shift, because re-loading re-parses the timestamps</button>
+      <button class="qopt" type="button">D · None; a test that compares two runs of the same code can never fail</button>
+      <p class="qwhy">A re-run is a label-preserving change: the trips did not happen twice. If the predictions move, the pipeline is not idempotent, and the missing dedup step is why.</p>
+    </div>
+
+    <div class="quiz-q" data-answer="3">
+      <p class="qtext">3 · The ML Test Score sums points per section and then takes the minimum of the four sections, not the total. What does that choice do?</p>
+      <button class="qopt" type="button">A · It rewards teams that specialise in one section</button>
+      <button class="qopt" type="button">B · It makes the score easier to compute by hand</button>
+      <button class="qopt" type="button">C · It weights monitoring more heavily than the other sections</button>
+      <button class="qopt" type="button">D · It stops strength in one section from hiding an empty one: the only way to raise the score is to raise the weakest section</button>
+      <p class="qwhy">With a total, a team could score well with no monitoring at all. With a minimum, Wrenfold's constructed 4.0 in features and data counts for nothing while monitoring sits at 0.5.</p>
+    </div>
+
+    <p class="quiz-score"></p>
+  </section>
+
+  <section class="section" id="official">
+    <div class="section-kicker">
+      <span class="klabel">Sources covered</span>
+      <h2>What this session teaches, and where it came from</h2>
+    </div>
+    <div class="covered">
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">CheckList</span><span class="note">Ribeiro, Wu, Guestrin and Singh, ACL 2020: MFT, INV and DIR definitions, held-out accuracy overestimates performance, the user study and the commercial sentiment model; read at source</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">The ML Test Score</span><span class="note">Breck, Cai, Nielsen, Salib and Sculley, IEEE Big Data 2017: 28 tests in four sections, half and full points, minimum of four, interpretation table, 36 teams; read at source</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">Rules of Machine Learning</span><span class="note">Zinkevich, Google for Developers: training-serving skew definition and first cause; Rules 1, 4 and 32; read at source</span></div>
+      <div class="covered-row"><span class="status pill light">◐</span><span class="name">Behaviour tests on a demand forecast</span><span class="note">Our adaptation of an NLP method to a tabular forecast; the paper does not test this use</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">Wrenfold</span><span class="note">Constructed example on real HSL Helsinki trips (May 2021, CC BY 4.0); forecast values are printed by the bench engine; the ML Test Score card is constructed</span></div>
+    </div>
+    <p class="mono" style="margin-top:14px">Every fact on this page, and its verification tier, is recorded in the course's source map.</p>
+  </section>
+
+  <section class="cheat" id="cheatsheet">
+    <h3>Session 5 cheat sheet <span>· pin this</span></h3>
+    <div class="grid-2">
+      <div class="cheat-item"><b>MFT</b><span>Simple cases with obvious answers. Wrenfold: 04:00 below 08:00 on a weekday, every station.</span></div>
+      <div class="cheat-item"><b>INV</b><span>A change that must not matter. Wrenfold: load the file twice, every prediction equal within 1e-9.</span></div>
+      <div class="cheat-item"><b>DIR</b><span>A change with a known direction. Wrenfold: close 030, its forecast falls to 10% or less.</span></div>
+      <div class="cheat-item"><b>Metrics can flatter</b><span>Leakage, label shift and type coercion all lower the error. Behaviour tests do not read the error.</span></div>
+      <div class="cheat-item"><b>Minimum of four</b><span>ML Test Score: half a point manual, one automated, sum per section, score = weakest section.</span></div>
+      <div class="cheat-item"><b>Open question</b><span>How much model testing a young model needs is not measured. Decide by stakes and life expectancy.</span></div>
+    </div>
+  </section>
+
+  <div class="callout next">
+    <span class="nx-pill">Next session</span>
+    <p>Five pages of Wrenfold's test plan, seventeen tests, 79 modelled units. Session 6 turns them into a strategy someone keeps running: which tests run on every commit, which nightly, which before a release, who owns each one, what happens when a data test turns flaky, and how the plan scores on the bench against a runtime budget.</p>
+  </div>
+
+  <footer class="pagefoot">
+    <span>Session 5 of 6 · learn-testing-data-ml-code-with-phoebe · by Phoebe Fu &nbsp;·&nbsp; 📚 <a href="https://phoebefu6.github.io/learn-with-phoebe/">Learn with Phoebe ↗</a></span>
+    <span><a href="04-the-bug-catcher.html">← Prev: The bug catcher</a> &nbsp;·&nbsp; <a href="06-a-test-strategy-that-runs.html">Next: A test strategy that runs →</a></span>
+  </footer>
+
+</main>
+
+<script src="../assets/app.js?v=1"></script>
+</body>
+</html>

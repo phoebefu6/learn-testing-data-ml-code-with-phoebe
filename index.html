@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- social:start -->
+<meta name="description" content="Six sessions on testing data and ML code: the bugs data pipelines and models actually ship, unit tests for transforms, data checks, behaviour tests for models, and the cheapest set of tests that catches them, measured on real bike-share trips in your browser. Free, by Phoebe Fu.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Learn with Phoebe">
+<meta property="og:title" content="Learn Testing Data &amp; ML Code with Phoebe">
+<meta property="og:description" content="What test would fail if the code were wrong: unit tests for transforms, data checks and model behaviour. Find the cheapest set of tests that catches the bugs data and ML code actually ship.">
+<meta property="og:url" content="https://phoebefu6.github.io/learn-testing-data-ml-code-with-phoebe/">
+<meta property="og:image" content="https://phoebefu6.github.io/learn-testing-data-ml-code-with-phoebe/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Learn Testing Data &amp; ML Code with Phoebe">
+<meta name="twitter:description" content="Twelve real bugs planted in a real pipeline, seventeen tests that really run, and the cheapest set that catches them all, in your browser.">
+<meta name="twitter:image" content="https://phoebefu6.github.io/learn-testing-data-ml-code-with-phoebe/assets/og-cover.png">
+<!-- social:end -->
+<title>Learn Testing Data &amp; ML Code with Phoebe</title>
+<link rel="stylesheet" href="assets/style.css?v=1">
+<style>
+
+  .stats-row { display: flex; gap: 2.4rem; margin-top: 1.5rem; flex-wrap: wrap; }
+  .stat b { display: block; font-size: 2.1rem; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; }
+  .stat span { font-size: .72rem; opacity: 1; text-transform: uppercase; letter-spacing: .09em; font-weight: 600; }
+
+  .course-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+  .course-card {
+    border: 1px solid var(--hairline);
+    border-top: 4px solid var(--diff, var(--indigo));
+    border-radius: var(--radius);
+    padding: 1.2rem 1.3rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    text-decoration: none;
+    color: var(--ink);
+    background: #fff;
+    transition: box-shadow .15s ease, border-color .15s ease, transform .15s ease;
+    position: relative;
+  }
+  .course-card:hover { border-color: var(--indigo-soft); border-top-color: var(--diff, var(--indigo)); box-shadow: 0 8px 28px rgba(var(--shadow-rgb),.16); transform: translateY(-3px); }
+  .course-card .cicon { font-size: 1.7rem; line-height: 1; }
+  .course-card .cnum { font-size: .72rem; font-weight: 700; color: var(--indigo); text-transform: uppercase; letter-spacing: .1em; }
+  .course-card h3 { font-size: 1.05rem; font-weight: 800; line-height: 1.3; }
+  .course-card p { font-size: .85rem; color: var(--muted); flex: 1; }
+  .course-card .meta { display: flex; gap: .4rem; flex-wrap: wrap; }
+
+  .diff-legend { display: flex; gap: 1rem; margin-top: 1.6rem; font-size: .74rem; color: var(--muted); font-weight: 600; flex-wrap: wrap; }
+  .diff-legend i { display: inline-block; width: .85rem; height: .35rem; border-radius: 999px; margin-right: .35rem; vertical-align: middle; }
+
+  .paths { margin-top: 2.6rem; }
+  .paths h2 { font-size: 1.3rem; font-weight: 800; margin-bottom: .3rem; }
+  .paths .plede { color: var(--muted); font-size: .92rem; margin-bottom: .8rem; }
+  .path { display: flex; gap: .55rem; align-items: center; padding: .75rem 0; border-bottom: .5px solid var(--hairline); flex-wrap: wrap; }
+  .path:last-child { border-bottom: none; }
+  .path b { min-width: 15.5rem; font-size: .9rem; }
+  .path .pstep { background: var(--indigo-50); color: var(--indigo-deep); border-radius: 999px; padding: .16rem .68rem; font-weight: 700; font-size: .8rem; text-decoration: none; transition: all .12s ease; }
+  .path .pstep:hover { background: var(--indigo); color: #fff; }
+  .path .parr { color: var(--muted); font-weight: 700; }
+
+  .mm-section { margin-top: 1.6rem; }
+  .mm-section h2 { font-size: 1.3rem; font-weight: 800; margin-bottom: .2rem; }
+  .mm-section .mm-lede { color: var(--muted); font-size: .92rem; margin-bottom: .4rem; }
+  .mm-wrap { border: 1px solid var(--hairline); border-radius: var(--radius); background: linear-gradient(180deg,#fff,var(--indigo-50)); padding: .6rem; overflow-x: auto; }
+  .mm-svg { width: 100%; height: auto; display: block; max-width: 60rem; margin: 0 auto; min-width: 34rem; }
+  .mm-link { cursor: pointer; text-decoration: none; }
+  .mm-node rect { transition: opacity .15s ease, filter .15s ease; }
+  .mm-node text { pointer-events: none; }
+  .mm-link:hover .mm-node rect { filter: brightness(1.06); }
+  .mm-edge { transition: opacity .15s ease; }
+
+  .not-this { border: 1px solid var(--hairline); border-left: 4px solid var(--amber); border-radius: var(--radius); background: #fff; padding: 1.1rem 1.3rem; margin-top: 1.2rem; }
+  .not-this h3 { font-size: .95rem; font-weight: 800; margin-bottom: .5rem; }
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="eyebrow">Learn with Phoebe · Programming</div>
+    <h1>Learn <span class="accent">Testing Data &amp; ML Code</span> with Phoebe</h1>
+    <p class="sub">What test would fail if the code were wrong: unit tests for transforms, data checks and model behaviour. Find the cheapest set of tests that catches the bugs data and ML code actually ship. Data code fails quietly: the job succeeds, the dashboard refreshes, and the number is wrong. Six sessions around one question: for each bug your pipeline could ship, which test would fail, and what does that test cost to run?</p>
+    <div class="stats-row">
+      <div class="stat"><b data-count="6">6</b><span>sessions</span></div>
+      <div class="stat"><b data-count="12">12</b><span>bugs planted for real</span></div>
+      <div class="stat"><b data-count="17">17</b><span>tests that really run</span></div>
+      <div class="stat"><b data-count="13810">13810</b><span>real trips on the bench</span></div>
+      <div class="stat"><b data-count="45">45</b><span>min per session</span></div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="section">
+    <div class="paths" style="margin-top:0">
+      <h2>The six sessions 🎯 <span style="font-size:.85rem;font-weight:600;color:var(--muted)">· from a bug list to a test plan someone keeps running</span></h2>
+      <p class="plede">The running case is <strong>Wrenfold</strong> (constructed), a city bike-share operator whose pipeline turns raw trips into cleaned trips, then station-hour counts, then a demand forecast that decides where to move bikes. Wrenfold is invented; the trips it processes are real: 13,810 trips from HSL's Helsinki city bike data for May 2021. Each session adds one piece to Wrenfold's test plan.</p>
+    </div>
+
+    <div class="course-grid">
+      <a class="course-card" href="courses/01-what-test-would-fail.html" style="--diff:#34D399">
+        <span class="cicon">🔕</span>
+        <span class="cnum">Session 1 · foundations</span>
+        <h3>What test would fail if the code were wrong?</h3>
+        <p>Silent failure, the twelve bug classes data and ML code ship (nulls, fan-out, units, timezones, leakage, skew and more), and a test pyramid redrawn for data. Build-along: break a Wrenfold transform and watch the existing test stay green.</p>
+        <span class="meta"><span class="pill amber">▶ Start here</span></span>
+      </a>
+      <a class="course-card" href="courses/02-unit-tests-for-transforms.html" style="--diff:#34D399">
+        <span class="cicon">🧩</span>
+        <span class="cnum">Session 2 · foundations</span>
+        <h3>Unit tests for transforms: pytest, fixtures, small fake data</h3>
+        <p>Arrange, act, assert; fixtures and parametrize; why a pure function is cheap to test and a function that reads a file is not. Build-along: four tests for Wrenfold's trip cleaner.</p>
+        <span class="meta"><span class="pill">tests for the code</span></span>
+      </a>
+      <a class="course-card" href="courses/03-data-checks.html" style="--diff:#FBBF24">
+        <span class="cicon">📏</span>
+        <span class="cnum">Session 3 · core</span>
+        <h3>Data checks: schema, ranges, uniqueness, distributions</h3>
+        <p>Expectation suites, dataframe schemas and dbt data tests as one category; static checks against distribution checks, and what a false alarm costs. Build-along: a check suite for cleaned trips.</p>
+        <span class="meta"><span class="pill">tests for the data</span></span>
+      </a>
+      <a class="course-card" href="courses/04-the-bug-catcher.html" style="--diff:#FB923C">
+        <span class="cicon">🧫</span>
+        <span class="cnum">Session 4 · bench night</span>
+        <h3>The bench: bug catcher</h3>
+        <p>A real pipeline on real trips, twelve bug injectors and seventeen tests, all running in your browser. Read the catch matrix, tighten the thresholds and count the false alarms, then find the cheapest set that catches every bug.</p>
+        <span class="meta"><span class="pill amber">★ the bench</span></span>
+      </a>
+      <a class="course-card" href="courses/05-model-behaviour-tests.html" style="--diff:#FB923C">
+        <span class="cicon">🧭</span>
+        <span class="cnum">Session 5 · stretch</span>
+        <h3>Model behaviour tests: invariance, directional, minimum functionality</h3>
+        <p>CheckList's three test types applied to a demand forecast, the ML Test Score rubric, and the open argument about how much ML testing a model needs before it earns its keep. Build-along: three behaviour tests on Wrenfold's model.</p>
+        <span class="meta"><span class="pill">tests for the model</span></span>
+      </a>
+      <a class="course-card" href="courses/06-a-test-strategy-that-runs.html" style="--diff:#F87171">
+        <span class="cicon">🗓️</span>
+        <span class="cnum">Session 6 · capstone</span>
+        <h3>A test strategy someone keeps running</h3>
+        <p>What runs on every commit, nightly and at release; a runtime budget; flaky data tests; who owns a failing check. Capstone: Wrenfold's whole test plan, scored on the bench.</p>
+        <span class="meta"><span class="pill amber">🔒 final scorecard</span></span>
+      </a>
+    </div>
+
+    <div class="diff-legend">
+      <span><i style="background:#34D399"></i>foundations</span>
+      <span><i style="background:#FBBF24"></i>core</span>
+      <span><i style="background:#FB923C"></i>stretch and bench</span>
+      <span><i style="background:#F87171"></i>capstone</span>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="paths" style="margin-top:0">
+      <h2>Your passport 🎫</h2>
+      <p class="plede">Clear all three quiz questions in a session and it gets stamped. Six stamps means you can name the bug classes data and ML code ship, unit-test a transform, write a data check suite, read a catch matrix, write behaviour tests for a model, and plan which tests run when. Stamps live in this browser only.</p>
+    </div>
+    <div class="pp-strip"></div>
+  </section>
+
+  <section class="section">
+    <div class="not-this">
+      <h3>What this is not, so you land in the right place 🧭</h3>
+      <table class="clean">
+        <tr><th>If your question is</th><th>Go here instead</th></tr>
+        <tr><td>What is a test for, why can a green suite lie, and how does mutation testing score a suite?</td><td><a href="https://phoebefu6.github.io/learn-ai-qa-with-phoebe/">AI QA ↗</a></td></tr>
+        <tr><td>How do I wire data tests and contracts into CI and orchestration?</td><td><a href="https://phoebefu6.github.io/learn-dataops-with-phoebe/courses/b3-data-testing-contracts.html">DataOps, builder session 3 ↗</a></td></tr>
+        <tr><td>How do I write tests inside a dbt project?</td><td><a href="https://phoebefu6.github.io/learn-analytics-engineering-with-phoebe/">Analytics Engineering ↗</a></td></tr>
+        <tr><td>Which metric should judge my model, and how do I design a validation?</td><td><a href="https://phoebefu6.github.io/learn-model-evaluation-with-phoebe/">Model Evaluation ↗</a></td></tr>
+        <tr><td>How do I watch data and models after they are deployed?</td><td><a href="https://phoebefu6.github.io/learn-data-observability-with-phoebe/">Data Observability ↗</a> or <a href="https://phoebefu6.github.io/learn-ml-production-with-phoebe/">ML in Production ↗</a></td></tr>
+        <tr><td><strong>My pipeline or model can be wrong while every job is green, and I want the tests that would notice, at a cost I can run.</strong></td><td><strong>you are in the right place</strong></td></tr>
+      </table>
+      <p style="margin-top:.7rem;font-size:.86rem;color:var(--muted)"><strong>Data and ML bug classes only.</strong> Which test catches which bug, before it ships. General testing craft, CI wiring and monitoring after deploy are taught once, in the courses above, and linked rather than repeated.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="paths">
+      <h2>Choose your path 🗺️</h2>
+      <p class="plede">Three doors into the same habit: name the bug first, then pick the cheapest test that would fail on it.</p>
+      <div class="path"><b>🐍 I write the transforms</b>
+        <a class="pstep" href="courses/01-what-test-would-fail.html">1</a><span class="parr">→</span>
+        <a class="pstep" href="courses/02-unit-tests-for-transforms.html">2</a><span class="parr">→</span>
+        <a class="pstep" href="courses/04-the-bug-catcher.html">4</a>
+        <span style="font-size:.82rem;color:var(--muted)">the bug classes, unit tests that catch them, then measure what they miss</span>
+      </div>
+      <div class="path"><b>🧮 I own the tables</b>
+        <a class="pstep" href="courses/01-what-test-would-fail.html">1</a><span class="parr">→</span>
+        <a class="pstep" href="courses/03-data-checks.html">3</a><span class="parr">→</span>
+        <a class="pstep" href="courses/06-a-test-strategy-that-runs.html">6</a>
+        <span style="font-size:.82rem;color:var(--muted)">data checks, their false alarms, and when each one runs</span>
+      </div>
+      <div class="path"><b>🤖 I ship the model</b>
+        <a class="pstep" href="courses/01-what-test-would-fail.html">1</a><span class="parr">→</span>
+        <a class="pstep" href="courses/04-the-bug-catcher.html">4</a><span class="parr">→</span>
+        <a class="pstep" href="courses/05-model-behaviour-tests.html">5</a><span class="parr">→</span>
+        <a class="pstep" href="courses/06-a-test-strategy-that-runs.html">6</a>
+        <span style="font-size:.82rem;color:var(--muted)">the bugs a holdout metric cannot see, and the tests that can</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="paths" style="margin-top:0">
+      <h2>What is honest here 🧾</h2>
+      <p class="plede">The bench computes for real; the running case is constructed and labelled; tools and papers are read at their source and cited by version.</p>
+    </div>
+    <table class="clean">
+      <tr><th>Claim</th><th>Status</th></tr>
+      <tr><td>Every caught, pass, false alarm and "ships" on the bench</td><td><strong>Really computed</strong> in your browser: the pipeline runs clean and with each bug, and every enabled test runs against the output; a Python twin produces the same numbers</td></tr>
+      <tr><td>The trips</td><td><strong>Real:</strong> HSL's Helsinki city bike origin-destination data, May 2021, CC BY 4.0 (owned by City Bike Finland), a seeded sample of the five busiest stations</td></tr>
+      <tr><td>Wrenfold, its forecast and its test plan</td><td><strong>Constructed</strong> for teaching and labelled on every page; no real company</td></tr>
+      <tr><td>The capacity-history rows and the stale station snapshot</td><td><strong>Constructed</strong> additions to the real station table, so two of the twelve bugs have something to break</td></tr>
+      <tr><td>Test cost</td><td><strong>Modelled</strong> in units (a unit test is 1, a full re-run is 20), not timed</td></tr>
+      <tr><td>pytest, Hypothesis, Great Expectations (GX Core 1.x), pandera, dbt data tests</td><td><strong>Read at their docs</strong> and cited by version; APIs move, so re-check before you copy</td></tr>
+      <tr><td>CheckList (ACL 2020) and the ML Test Score (IEEE Big Data 2017)</td><td><strong>Read at source;</strong> applying CheckList's test types to a demand forecast is an adaptation, and says so</td></tr>
+    </table>
+  </section>
+
+  <section class="section mm-section">
+    <h2>The knowledge map 🧠</h2>
+    <p class="mm-lede">The whole test plan at a glance - hover a session to spotlight its concepts, click any node to jump in.</p>
+    <div class="mm-wrap"><div id="mindmap"></div></div>
+  </section>
+
+  <footer class="pagefoot">
+    <span>learn-testing-data-ml-code-with-phoebe · by Phoebe Fu &nbsp;·&nbsp; 📚 <a href="https://phoebefu6.github.io/learn-with-phoebe/">Learn with Phoebe ↗</a></span>
+    <span>Neighbours on the shelf: <a href="https://phoebefu6.github.io/learn-ai-qa-with-phoebe/">AI QA ↗</a> &nbsp;·&nbsp; <a href="https://phoebefu6.github.io/learn-dataops-with-phoebe/">DataOps ↗</a> &nbsp;·&nbsp; <a href="https://phoebefu6.github.io/learn-model-evaluation-with-phoebe/">Model Evaluation ↗</a></span>
+  </footer>
+
+</main>
+
+<script>
+window.MINDMAP_DATA = {
+ "title": "Testing Data\n& ML Code",
+ "centerColor": "#5A3700",
+ "sessions": [
+  {
+   "label": "What test\nwould fail?",
+   "href": "courses/01-what-test-would-fail.html",
+   "color": "#34D399",
+   "concepts": [
+    {
+     "label": "Silent failure",
+     "href": "courses/01-what-test-would-fail.html"
+    },
+    {
+     "label": "Twelve bug classes",
+     "href": "courses/01-what-test-would-fail.html"
+    },
+    {
+     "label": "A pyramid for data",
+     "href": "courses/01-what-test-would-fail.html"
+    }
+   ]
+  },
+  {
+   "label": "Unit tests for\ntransforms",
+   "href": "courses/02-unit-tests-for-transforms.html",
+   "color": "#34D399",
+   "concepts": [
+    {
+     "label": "Arrange, act, assert",
+     "href": "courses/02-unit-tests-for-transforms.html"
+    },
+    {
+     "label": "Fixtures and parametrize",
+     "href": "courses/02-unit-tests-for-transforms.html"
+    },
+    {
+     "label": "Pure functions vs IO",
+     "href": "courses/02-unit-tests-for-transforms.html"
+    }
+   ]
+  },
+  {
+   "label": "Data checks",
+   "href": "courses/03-data-checks.html",
+   "color": "#FBBF24",
+   "concepts": [
+    {
+     "label": "Schema and ranges",
+     "href": "courses/03-data-checks.html"
+    },
+    {
+     "label": "Reconcile and unique",
+     "href": "courses/03-data-checks.html"
+    },
+    {
+     "label": "Distribution, false alarms",
+     "href": "courses/03-data-checks.html"
+    }
+   ]
+  },
+  {
+   "label": "The bug\ncatcher",
+   "href": "courses/04-the-bug-catcher.html",
+   "color": "#FB923C",
+   "concepts": [
+    {
+     "label": "Catch matrix",
+     "href": "courses/04-the-bug-catcher.html"
+    },
+    {
+     "label": "Tighten thresholds",
+     "href": "courses/04-the-bug-catcher.html"
+    },
+    {
+     "label": "Cheapest full catch",
+     "href": "courses/04-the-bug-catcher.html"
+    }
+   ]
+  },
+  {
+   "label": "Model behaviour\ntests",
+   "href": "courses/05-model-behaviour-tests.html",
+   "color": "#FB923C",
+   "concepts": [
+    {
+     "label": "MFT, INV, DIR",
+     "href": "courses/05-model-behaviour-tests.html"
+    },
+    {
+     "label": "The ML Test Score",
+     "href": "courses/05-model-behaviour-tests.html"
+    },
+    {
+     "label": "Metrics that flatter",
+     "href": "courses/05-model-behaviour-tests.html"
+    }
+   ]
+  },
+  {
+   "label": "A test strategy\nthat runs",
+   "href": "courses/06-a-test-strategy-that-runs.html",
+   "color": "#F87171",
+   "concepts": [
+    {
+     "label": "Commit, nightly, release",
+     "href": "courses/06-a-test-strategy-that-runs.html"
+    },
+    {
+     "label": "Flaky data tests",
+     "href": "courses/06-a-test-strategy-that-runs.html"
+    },
+    {
+     "label": "Owners and budget",
+     "href": "courses/06-a-test-strategy-that-runs.html"
+    }
+   ]
+  }
+ ]
+};
+</script>
+<script src="assets/mindmap.js?v=1"></script>
+<script src="assets/app.js?v=1"></script>
+</body>
+</html>

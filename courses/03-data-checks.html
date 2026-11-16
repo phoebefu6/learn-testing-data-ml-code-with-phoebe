@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- social:start -->
+<meta name="description" content="Session 3 of 6. Data checks that read the real rows: schema, ranges, uniqueness, reconciliation, referential and split checks, the same rules in GX Core 1.x, pandera and dbt, and why a distribution check is only as good as its threshold.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Learn with Phoebe">
+<meta property="og:title" content="Data checks - learn testing data ml code with phoebe">
+<meta property="og:description" content="Session 3 of 6. Static checks, three tools for one idea, and the false-alarm bill of a distribution check. Build a check suite for real bike trips.">
+<meta property="og:url" content="https://phoebefu6.github.io/learn-testing-data-ml-code-with-phoebe/courses/03-data-checks.html">
+<meta property="og:image" content="https://phoebefu6.github.io/learn-testing-data-ml-code-with-phoebe/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Data checks - learn testing data ml code with phoebe">
+<meta name="twitter:description" content="Session 3 of 6. Checks that read every batch: schema, reconcile, unique, range, referential, drift, split.">
+<meta name="twitter:image" content="https://phoebefu6.github.io/learn-testing-data-ml-code-with-phoebe/assets/og-cover.png">
+<!-- social:end -->
+<title>Session 3 · Data checks - learn testing data ml code with phoebe</title>
+<link rel="stylesheet" href="../assets/style.css?v=1">
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="wrap">
+    <span class="crumb"><a href="../index.html">learn-testing-data-ml-code-with-phoebe</a> / Session 3 of 6</span>
+    <button class="btn" id="toggle-all" type="button">Expand all</button>
+    <button class="btn primary" id="zoom-toggle" type="button">Projector zoom: off</button>
+  </div>
+</div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="eyebrow">Learn Testing Data &amp; ML Code with Phoebe · Session 3 of 6</div>
+    <h1>Data checks that read <span class="accent">the real rows</span></h1>
+    <p class="sub">A unit test reads your code on five rows you wrote by hand. A data check reads every row of every batch the pipeline actually produced, so it sees bugs no fixture exercised and bugs that are not in your code at all. Tonight we write the static checks that guard the shape of each batch, see one idea written in three tools, and price the distribution checks that compare today with a known-good week, false alarms included.</p>
+    <div class="chip-row">
+      <span class="chip level">🟡 Core</span>
+      <span class="chip audience">Data, analytics and ML engineers who write pandas</span>
+      <span class="chip audience">Bring your four unit tests from session 2</span>
+      <span class="chip time">45 min</span>
+    </div>
+    <div class="agenda">
+      <span class="a1" style="flex:1">0-3 · Welcome</span>
+      <span class="a2" style="flex:4">3-18 · Static checks, three tools, distribution checks</span>
+      <span class="a3" style="flex:5">18-40 · Build-along: a check suite for cleaned trips</span>
+      <span class="a4" style="flex:1">40-45 · Q&amp;A</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="section" id="intro">
+    <div class="section-kicker">
+      <span class="klabel">Part 0</span>
+      <h2>Where we start</h2>
+    </div>
+    <p class="lede">Session 2 left Wrenfold (Constructed Wrenfold example) with four unit tests that catch 7 of its 12 bugs for 4 modelled units. Five still ship: join fan-out, duplicated trips, target leakage, type coercion and the stale reference table. None of the five lives inside a small function you can feed a fixture. They live in the rows: in how many there are, whether a key repeats, whether a station exists, which days the fit read. Wrenfold is constructed; the trips it processes are real HSL Helsinki trips from May 2021, so the rows tonight's checks read are real rows.</p>
+
+    <div class="legend">
+      <span class="pill">🎫 Clear all three quiz questions to stamp your passport</span>
+      <span class="pill">Live = presented in the 45 minutes</span>
+      <span class="pill">Self-study = the full depth, after class</span>
+      <span class="pill">★ Build-along = do it yourself, in the page</span>
+    </div>
+
+    <div class="callout win">
+      <p><strong>★ What you walk out with tonight.</strong> Page three of Wrenfold's test plan: a suite of eight data checks for cleaned trips, in run order, with what each one reads, the threshold each one uses and what each one costs. Session 4 runs your suite against all twelve bugs.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-1">
+    <div class="section-kicker">
+      <span class="klabel">Part 1 · covers schema, range, uniqueness, reconciliation, referential and split checks</span>
+      <h2>Static checks: the shape of every batch</h2>
+      <span class="tag concept">5 min live</span>
+    </div>
+    <p class="lede">A static check states a rule that holds for every batch, forever, with no reference to last week: a station id is three digits, a trip key appears once, a distance is either missing or between zero and fifty kilometres. It needs no history and no threshold to tune, so it is the cheapest kind of data check to trust. The figure shows Wrenfold's cleaned-trips table (Constructed Wrenfold example) and exactly which columns each check reads.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 412" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Wrenfold's cleaned-trips table has eight columns: sec, dur, dm, s, r, km, hour and cap. Schema reads s and r for the pattern of three digits, km for a float and cap for an integer. Range reads dur at least 60, km in 0 to 50 exclusive of zero, and hour from 0 to 743. Unique reads the five-column key sec, dur, dm, s, r. Referential looks up r in the station table, at most 0.2 percent rejected. Reconcile, filled teal, reads every row at three stages: raw distinct, clean rows, aggregate sum, counted by its own code. Split reads hour and checks no fitted day is after day 21.">
+        <defs>
+          <filter id="s3aSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="31" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="s3aHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#804F00" stroke-width="1" opacity=".5"/></pattern>
+        </defs>
+        <style>
+          .s3aH { font: 800 12px Inter, sans-serif; fill: #2A1F12; }
+          .s3aL { font: 600 12px Inter, sans-serif; fill: #2A1F12; }
+          .s3aS { font: 400 11px Inter, sans-serif; fill: #5E5243; }
+          .s3aA { font: 700 11px Inter, sans-serif; fill: #804F00; }
+          .s3aC { font: 700 11px ui-monospace, Menlo, monospace; fill: #2A1F12; }
+          .s3aN { font: 400 12px Inter, sans-serif; fill: #5E5243; }
+        </style>
+
+        <text class="s3aH" x="24" y="30">WRENFOLD'S CLEANED TRIPS, AND WHAT EACH CHECK READS</text>
+        <text class="s3aS" x="470" y="30">Constructed Wrenfold example on real HSL trips, May 2021</text>
+
+        <g filter="url(#s3aSk)" fill="none" stroke="#2A1F12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="240" y="58" width="70" height="30" rx="6" transform="rotate(-0.6 275 73)" fill="url(#s3aHc)"/>
+          <rect x="316" y="58" width="70" height="30" rx="6" transform="rotate(0.5 351 73)" fill="url(#s3aHc)"/>
+          <rect x="392" y="58" width="70" height="30" rx="6" transform="rotate(-0.4 427 73)" fill="url(#s3aHc)"/>
+          <rect x="468" y="58" width="70" height="30" rx="6" transform="rotate(0.6 503 73)" fill="url(#s3aHc)"/>
+          <rect x="544" y="58" width="70" height="30" rx="6" transform="rotate(-0.5 579 73)" fill="url(#s3aHc)"/>
+          <rect x="620" y="58" width="70" height="30" rx="6" transform="rotate(0.4 655 73)" fill="url(#s3aHc)"/>
+          <rect x="696" y="58" width="70" height="30" rx="6" transform="rotate(-0.6 731 73)" fill="url(#s3aHc)"/>
+          <rect x="772" y="58" width="70" height="30" rx="6" transform="rotate(0.5 807 73)" fill="url(#s3aHc)"/>
+
+          <rect x="468" y="126" width="146" height="28" rx="8" transform="rotate(-0.8 541 140)" fill="#FFFFFF"/>
+          <rect x="620" y="126" width="70" height="28" rx="8" transform="rotate(1 655 140)" fill="#FFFFFF"/>
+          <rect x="772" y="126" width="70" height="28" rx="8" transform="rotate(-1 807 140)" fill="#FFFFFF"/>
+
+          <rect x="316" y="170" width="70" height="28" rx="8" transform="rotate(1 351 184)" fill="#FFFFFF"/>
+          <rect x="620" y="170" width="70" height="28" rx="8" transform="rotate(-1 655 184)" fill="#FFFFFF"/>
+          <rect x="696" y="170" width="70" height="28" rx="8" transform="rotate(0.8 731 184)" fill="#FFFFFF"/>
+
+          <rect x="240" y="214" width="374" height="28" rx="8" transform="rotate(-0.4 427 228)" fill="#FBF3E4"/>
+
+          <rect x="544" y="258" width="70" height="28" rx="8" transform="rotate(1.2 579 272)" fill="#FFFFFF"/>
+
+          <rect x="240" y="302" width="602" height="28" rx="8" transform="rotate(0.3 541 316)" fill="#7DD3C6"/>
+
+          <rect x="696" y="346" width="70" height="28" rx="8" transform="rotate(-1 731 360)" fill="#FFFFFF"/>
+
+          <circle cx="842" cy="22" r="7"/>
+          <path d="M847 27 L854 34"/>
+        </g>
+
+        <text class="s3aA" x="24" y="78">CHECK · UNITS</text>
+        <text class="s3aL" x="275" y="78" text-anchor="middle">sec</text>
+        <text class="s3aL" x="351" y="78" text-anchor="middle">dur</text>
+        <text class="s3aL" x="427" y="78" text-anchor="middle">dm</text>
+        <text class="s3aL" x="503" y="78" text-anchor="middle">s</text>
+        <text class="s3aL" x="579" y="78" text-anchor="middle">r</text>
+        <text class="s3aL" x="655" y="78" text-anchor="middle">km</text>
+        <text class="s3aL" x="731" y="78" text-anchor="middle">hour</text>
+        <text class="s3aL" x="807" y="78" text-anchor="middle">cap</text>
+        <text class="s3aS" x="240" y="106">sec: since 1 May · dur: seconds · dm: metres · s, r: departure and return station</text>
+
+        <text class="s3aH" x="24" y="136">Schema · 2</text>
+        <text class="s3aS" x="24" y="151">ids ^\d{3}$, cap int, km float</text>
+        <text class="s3aC" x="541" y="144" text-anchor="middle">^\d{3}$</text>
+        <text class="s3aC" x="655" y="144" text-anchor="middle">float</text>
+        <text class="s3aC" x="807" y="144" text-anchor="middle">int</text>
+
+        <text class="s3aH" x="24" y="180">Range · 2</text>
+        <text class="s3aS" x="24" y="195">km null or (0, 50], dur, hour</text>
+        <text class="s3aC" x="351" y="188" text-anchor="middle">&gt;=60</text>
+        <text class="s3aC" x="655" y="188" text-anchor="middle">(0,50]</text>
+        <text class="s3aC" x="731" y="188" text-anchor="middle">0..743</text>
+
+        <text class="s3aH" x="24" y="224">Unique · 3</text>
+        <text class="s3aS" x="24" y="239">one row per five-column key</text>
+        <text class="s3aC" x="427" y="232" text-anchor="middle">key: sec+dur+dm+s+r</text>
+
+        <text class="s3aH" x="24" y="268">Referential · 3</text>
+        <text class="s3aS" x="24" y="283">r in station table, 0.2% max</text>
+        <text class="s3aC" x="579" y="276" text-anchor="middle">lookup</text>
+
+        <text class="s3aH" x="24" y="312">Reconcile · 3</text>
+        <text class="s3aS" x="24" y="327">recounted by independent code</text>
+        <text class="s3aL" x="541" y="320" text-anchor="middle">raw distinct → clean rows → aggregate sum, counted by its own code</text>
+
+        <text class="s3aH" x="24" y="356">Split · 1</text>
+        <text class="s3aS" x="24" y="371">no scored day in the fit</text>
+        <text class="s3aC" x="731" y="364" text-anchor="middle">day&lt;=21</text>
+
+        <text class="s3aN" x="24" y="400">Six checks, eight columns. Reconcile is the only one that reads every row at every stage.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - each static check reads a few columns; reconcile reads the counts of the whole pipeline</figcaption>
+    </figure>
+
+    <details class="card" open>
+      <summary><span class="mode live">Live</span>Five static checks in Wrenfold's terms<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Each rule below is the exact rule the session 4 bench runs on Wrenfold's cleaned trips (Constructed Wrenfold example). Costs are modelled bench units, not timings.</p>
+        <table class="clean">
+          <tr><th>Check</th><th>The rule</th><th>Units</th></tr>
+          <tr><td>Schema</td><td>Departure and return station ids match <code>^\d{3}$</code>, capacity is an integer, km is a float or missing</td><td>2</td></tr>
+          <tr><td>Range</td><td>km is missing or above 0 and at most 50; duration is at least 60 seconds; hour bucket is 0 to 743 (31 days of 24 hours)</td><td>2</td></tr>
+          <tr><td>Unique</td><td>No two clean rows share the trip key: seconds, duration, metres, departure station, return station</td><td>3</td></tr>
+          <tr><td>Referential</td><td>At most 0.2% of kept trips point at a return station missing from the station table, and every forecast station is in it</td><td>3</td></tr>
+          <tr><td>Reconcile</td><td>Clean rows equal the distinct raw rows that pass the rules; the aggregate total equals the clean rows it should count</td><td>3</td></tr>
+        </table>
+        <p>Notice what each rule refuses to assume. The range rule allows a missing distance on purpose: HSL records a distance of 0 or over 50,000 metres for some trips, and Wrenfold's cleaner turns those into null, never into 0.0. A range rule that read "km at least 0" would pass the silent null coercion bug, which writes exactly 0.0. The bound has to exclude zero for the check to catch it.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Reconciliation, the most productive check on the bench<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>On the session 4 bench, reconcile fails on five of the twelve bugs for 3 modelled units: join fan-out, duplicated trips, dropped station, label shift and type coercion. No other single check catches more. It works because almost every quiet bug changes a count somewhere: fan-out adds rows, a skipped dedup doubles them, a dropped station loses departures between clean and aggregate, counting arrivals instead of departures moves the aggregate total.</p>
+        <p>The one condition that makes it work: <strong>the counting code must be independent of the pipeline's code.</strong> If your recount calls the pipeline's own <code>clean()</code> and compares the result with the pipeline's output, it compares a function with itself and agrees with every bug. Wrenfold's reconcile reads the raw file again, keeps station ids as the text the source wrote, drops exact duplicates and short trips with its own few lines of pandas, and only then compares counts. Under the type coercion bug the pipeline turns "030" into "30", rejects 8,395 trips as unknown and writes 5,071 rows; the independent recount still expects 13,465, and the check fails.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>The one-unit check that is the only catch for leakage<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Wrenfold fits on 1 to 21 May and is scored on 22 to 31 May. The split check reads one thing: the days the fit actually used. If any is after day 21, it fails. It costs 1 modelled unit, the cheapest test on the bench.</p>
+        <p>On the bench it is the only test of all seventeen that fails on target leakage. Leakage moves the holdout error from 1.9113 to 1.7409, better, so a metric threshold passes it; it leaves rows, schema, ranges and distributions untouched, so every other data check passes it too. That is why the split check is one of the six tests in the cheapest set that catches all twelve bugs, which session 4 finds by exhaustive search. A check that reads the right thing is worth more than any amount of checking the wrong thing.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>Every row twice, and three stations nobody listed.</strong> We downloaded HSL's May 2021 city bike file (CC BY 4.0) and counted it: 814,676 data lines, 407,338 distinct rows, every trip exactly twice. Of the 432 station ids the trips mention, three, 754, 997 and 999, are missing from HSL's 457-row station table. Both facts are invisible to a unit test of your code and obvious to a uniqueness check and a referential check on day one. That is why Wrenfold's cleaner deduplicates and why its referential rule allows up to 0.2% unknown return stations rather than zero: on the clean run, exactly one trip in the sample is rejected.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-2">
+    <div class="section-kicker">
+      <span class="klabel">Part 2 · covers GX Core 1.x expectations and suites, pandera schemas, dbt data tests as a category</span>
+      <h2>Three tools, one idea</h2>
+      <span class="tag concept">5 min live</span>
+    </div>
+    <p class="lede">Great Expectations, pandera and dbt look different on the page and do the same thing underneath: you name a rule about the data, the tool finds the rows that break it, and the check fails if there are any. Pick the one that sits where your data already is. Below, two of Wrenfold's rules (Constructed Wrenfold example) are written in all three: km is missing or in (0, 50], and a station id is three digits.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 380" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Three code panels side by side. GX Core 1.x: an ExpectationSuite named trips with an ExpectColumnValuesToBeBetween expectation on km from 0.001 to 50, plus an id-pattern expectation from the GX gallery. pandera: a DataFrameSchema with a nullable float km column checked between 0 and 50 and a string s column checked against three digits, validated with lazy=True. dbt: two singular data tests that select rows with km at or below 0 or above 50, and station ids whose length is not 3; zero rows returned means pass. Arrows from all three lead into one shared box, filled teal: rows that break the rule, the check fails.">
+        <defs>
+          <filter id="s3bSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="47" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="s3bAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A1F12" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .s3bH { font: 800 12px Inter, sans-serif; fill: #2A1F12; }
+          .s3bL { font: 600 12px Inter, sans-serif; fill: #2A1F12; }
+          .s3bS { font: 400 11px Inter, sans-serif; fill: #5E5243; }
+          .s3bA { font: 700 11px Inter, sans-serif; fill: #804F00; }
+          .s3bC { font: 700 11px ui-monospace, Menlo, monospace; fill: #2A1F12; }
+          .s3bN { font: 400 12px Inter, sans-serif; fill: #5E5243; }
+        </style>
+
+        <text class="s3bH" x="24" y="30">THE SAME TWO CHECKS, THREE TOOLS</text>
+        <text class="s3bS" x="300" y="30">km is null or in (0, 50]; a station id is three digits</text>
+
+        <text class="s3bA" x="30" y="62">GX CORE 1.X · EXPECTATIONS</text>
+        <text class="s3bA" x="313" y="62">PANDERA 0.36 · SCHEMA</text>
+        <text class="s3bA" x="596" y="62">DBT · SINGULAR DATA TESTS</text>
+
+        <g filter="url(#s3bSk)" fill="none" stroke="#2A1F12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="24" y="74" width="266" height="176" rx="10" transform="rotate(-0.4 157 162)" fill="#FBF3E4"/>
+          <rect x="307" y="74" width="266" height="176" rx="10" transform="rotate(0.4 440 162)" fill="#FBF3E4"/>
+          <rect x="590" y="74" width="266" height="176" rx="10" transform="rotate(-0.3 723 162)" fill="#FBF3E4"/>
+          <path d="M157 256 C157 284 200 314 272 314" marker-end="url(#s3bAr)"/>
+          <path d="M440 256 L440 284" marker-end="url(#s3bAr)"/>
+          <path d="M723 256 C723 284 680 314 608 314" marker-end="url(#s3bAr)"/>
+          <rect x="280" y="290" width="320" height="48" rx="12" transform="rotate(-0.5 440 314)" fill="#7DD3C6"/>
+        </g>
+
+        <text class="s3bC" x="36" y="96">suite = gx.ExpectationSuite(</text>
+        <text class="s3bC" x="36" y="111">    name="trips")</text>
+        <text class="s3bC" x="36" y="126">suite.add_expectation(</text>
+        <text class="s3bC" x="36" y="141">  gx.expectations</text>
+        <text class="s3bC" x="36" y="156">    .ExpectColumnValuesToBeBetween(</text>
+        <text class="s3bC" x="36" y="171">      column="km",</text>
+        <text class="s3bC" x="36" y="186">      min_value=0.001,</text>
+        <text class="s3bC" x="36" y="201">      max_value=50))</text>
+        <text class="s3bC" x="36" y="216"># + an id-pattern expectation</text>
+        <text class="s3bC" x="36" y="231">#   from the GX gallery</text>
+
+        <text class="s3bC" x="319" y="96">schema = pa.DataFrameSchema({</text>
+        <text class="s3bC" x="319" y="111">  "km": pa.Column(float,</text>
+        <text class="s3bC" x="319" y="126">    pa.Check(lambda s:</text>
+        <text class="s3bC" x="319" y="141">      (s &gt; 0) &amp; (s &lt;= 50)),</text>
+        <text class="s3bC" x="319" y="156">    nullable=True),</text>
+        <text class="s3bC" x="319" y="171">  "s": pa.Column(str,</text>
+        <text class="s3bC" x="319" y="186">    pa.Check(lambda s:</text>
+        <text class="s3bC" x="319" y="201">      s.str.match(r"^\d{3}$"))),</text>
+        <text class="s3bC" x="319" y="216">})</text>
+        <text class="s3bC" x="319" y="231">schema.validate(df, lazy=True)</text>
+
+        <text class="s3bC" x="602" y="96">-- tests/km_out_of_range.sql</text>
+        <text class="s3bC" x="602" y="111">select * from {{ ref('trips') }}</text>
+        <text class="s3bC" x="602" y="126">where km &lt;= 0 or km &gt; 50</text>
+        <text class="s3bC" x="602" y="156">-- tests/bad_station_id.sql</text>
+        <text class="s3bC" x="602" y="171">select * from {{ ref('trips') }}</text>
+        <text class="s3bC" x="602" y="186">where length(s) &lt;&gt; 3</text>
+        <text class="s3bC" x="602" y="201">-- digits: your warehouse regex</text>
+        <text class="s3bC" x="602" y="231">-- 0 rows returned = pass</text>
+
+        <text class="s3bH" x="440" y="310" text-anchor="middle">Rows that break the rule</text>
+        <text class="s3bL" x="440" y="328" text-anchor="middle">the check fails, and says which</text>
+
+        <text class="s3bN" x="24" y="368">Different syntax, one mechanism: name the rule, find the rows that break it, fail if any do.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - pick the tool that sits where your data lives; the rule and the failing rows are the same</figcaption>
+    </figure>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>GX Core 1.x: expectations and suites<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Great Expectations defines the unit plainly: "An Expectation is a verifiable assertion about your data." In GX Core 1.x you create one as a Python class under <code>gx.expectations</code>, and an Expectation Suite groups the expectations that describe the same set of data: <code>gx.ExpectationSuite(name=...)</code>, then <code>suite.add_expectation(...)</code>.</p>
+        <p>Wrenfold's checks map onto standard 1.x classes: <code>ExpectColumnValuesToBeBetween</code> for the km and hour ranges, <code>ExpectColumnValuesToNotBeNull</code> for the station ids, <code>ExpectColumnValuesToBeUnique</code> for a single-column key, and <code>ExpectColumnMedianToBeBetween</code> for Part 3's median check. Two honest caveats. Wrenfold's trip key has five columns, and a single-column uniqueness expectation does not cover it: build one key column first, or look up a compound-key expectation in the gallery for your GX version. And every tool has its own convention for whether a bound is inclusive and how it treats nulls inside a range: read the docs for your version, then write a test row with km exactly 0.0 and confirm the check fails on it.</p>
+        <p>Say "GX Core 1.x" when you write about it. The 0.18 documentation is marked no longer actively maintained, and the 0.x API is different enough that a 0.x tutorial will mislead you.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>pandera: a schema object for a DataFrame<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>pandera keeps the checks next to your pandas code. Import it as <code>import pandera.pandas as pa</code> (the path introduced in v0.24.0), then describe the frame: <code>pa.DataFrameSchema({"col": pa.Column(int, pa.Check.ge(0))})</code>. Built-in checks such as <code>pa.Check.ge</code> and <code>pa.Check.isin</code> cover most rules; for anything else, pandera documents custom checks written as a function of the column, which is how the three-digit id rule is written in the figure.</p>
+        <p>By default <code>schema.validate(df)</code> stops at the first failure. With <code>lazy=True</code> it collects every failure into one <code>pa.errors.SchemaErrors</code>, which is what you want on a batch: one run, the whole list. Error messages read like "non-nullable series 'id' contains null values", specific enough to act on. If you prefer classes, pandera also offers a class-based form, a <code>DataFrameModel</code> whose fields carry constraints such as <code>pa.Field(ge=0)</code>.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>dbt data tests, as one category<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>If your cleaned trips live in a warehouse and are built by dbt, the same checks belong there. A dbt data test is a select statement that returns the failing rows: zero rows means pass. A singular test is one SQL file, like the two in the figure. A generic test is reusable and configured on a column; dbt ships four: <code>unique</code>, <code>not_null</code>, <code>accepted_values</code> and <code>relationships</code>. Three of Wrenfold's checks map straight across: unique for the key (once it is one column), not_null for the ids, relationships for the referential rule.</p>
+        <p>Notice one convenience of SQL in the figure: <code>where km &lt;= 0 or km &gt; 50</code> never selects a null km, because a comparison with null is not true. Missing distances pass, exactly as Wrenfold's rule wants. The craft of dbt tests inside a dbt project belongs to <a href="https://phoebefu6.github.io/learn-analytics-engineering-with-phoebe/courses/a3-tests-as-trust.html">Learn Analytics Engineering, session a3</a>.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>dbt renamed its tests.</strong> dbt's documentation now says it plainly: "Tests are now called data tests to disambiguate from unit tests." The YAML key is <code>data_tests:</code>, with the old <code>tests:</code> still accepted as an alias. The rename is the distinction of the last two sessions, written into a tool: a unit test reads code on rows you wrote, a data test reads the rows your pipeline produced. Both are needed, and they catch different bugs.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-3">
+    <div class="section-kicker">
+      <span class="klabel">Part 3 · covers static vs distribution checks and their false-alarm cost</span>
+      <h2>Distribution checks and the false-alarm bill</h2>
+      <span class="tag concept">5 min live</span>
+    </div>
+    <p class="lede">A static check asks "is this row legal?". A distribution check asks "does this batch look like a batch we trusted?". It catches bugs that keep every row legal: a km/miles slip leaves every distance in range and shrinks them all by the same factor. The price is a threshold, and a threshold can fire on a perfectly good batch. The figure shows Wrenfold's median-km check (Constructed Wrenfold example) under two thresholds.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 330" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Median trip in km against a stored week-1 value of 1.982. Top row, normal band of plus or minus 15 percent, 1.685 to 2.279, filled teal: the clean May median 2.0095, 1.4 percent above, sits inside and passes; the km/miles bug at 1.2486, 37 percent below, sits outside and is caught. Bottom row, the same axis zoomed in, tight band of plus or minus 1 percent, 1.962 to 2.002: the clean May median 2.0095 falls outside, a false alarm; the miles bug is off the left edge and is still caught.">
+        <defs>
+          <filter id="s3cSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="53" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="s3cAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A1F12" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .s3cH { font: 800 12px Inter, sans-serif; fill: #2A1F12; }
+          .s3cL { font: 600 11px Inter, sans-serif; fill: #2A1F12; }
+          .s3cS { font: 400 11px Inter, sans-serif; fill: #5E5243; }
+          .s3cA { font: 700 11px Inter, sans-serif; fill: #804F00; }
+          .s3cR { font: 800 11px Inter, sans-serif; fill: #991B1B; }
+          .s3cN { font: 400 12px Inter, sans-serif; fill: #5E5243; }
+        </style>
+
+        <text class="s3cH" x="24" y="30">MEDIAN TRIP KM: ONE STORED VALUE, TWO BANDS</text>
+        <text class="s3cS" x="380" y="30">Constructed Wrenfold example on real HSL trips; bench canon</text>
+
+        <text class="s3cA" x="24" y="56">NORMAL BAND: WITHIN 15% OF 1.982 KM (1.685 TO 2.279)</text>
+        <text class="s3cR" x="156" y="78">km/miles bug 1.2486, -37%: caught</text>
+        <text class="s3cL" x="562" y="78" text-anchor="end">stored week 1: 1.982</text>
+        <text class="s3cL" x="590" y="78">clean May 2.0095, +1.4%: pass</text>
+
+        <g filter="url(#s3cSk)" fill="none" stroke="#2A1F12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="404" y="86" width="329" height="36" rx="6" transform="rotate(-0.3 568 104)" fill="#7DD3C6"/>
+          <path d="M80 122 L800 122"/>
+          <path d="M135 122 L135 127"/>
+          <path d="M357 122 L357 127"/>
+          <path d="M578 122 L578 127"/>
+          <path d="M800 122 L800 127"/>
+          <path d="M568.5 84 L568.5 128" stroke="#5A3700" stroke-width="2.4"/>
+          <circle cx="583.7" cy="104" r="5" fill="#FFFFFF"/>
+          <circle cx="162.3" cy="104" r="5" fill="#FEF2F2" stroke="#991B1B"/>
+
+          <rect x="256" y="214" width="318" height="36" rx="6" transform="rotate(0.3 415 232)" fill="#FBF3E4"/>
+          <path d="M80 250 L800 250"/>
+          <path d="M160 250 L160 255"/>
+          <path d="M400 250 L400 255"/>
+          <path d="M640 250 L640 255"/>
+          <path d="M416 212 L416 256" stroke="#5A3700" stroke-width="2.4"/>
+          <circle cx="636" cy="232" r="5" fill="#FEF2F2" stroke="#991B1B"/>
+          <path d="M200 232 L92 232" stroke="#991B1B" marker-end="url(#s3cAr)"/>
+        </g>
+
+        <text class="s3cS" x="135" y="140" text-anchor="middle">1.2</text>
+        <text class="s3cS" x="357" y="140" text-anchor="middle">1.6</text>
+        <text class="s3cS" x="578" y="140" text-anchor="middle">2.0</text>
+        <text class="s3cS" x="800" y="140" text-anchor="end">2.4</text>
+        <text class="s3cA" x="800" y="158" text-anchor="end">median trip, km</text>
+
+        <text class="s3cA" x="24" y="186">TIGHT BAND: WITHIN 1% OF 1.982 KM (1.962 TO 2.002), SAME AXIS ZOOMED IN</text>
+        <text class="s3cR" x="90" y="206">km/miles bug: caught</text>
+        <text class="s3cL" x="416" y="206" text-anchor="middle">stored 1.982</text>
+        <text class="s3cR" x="646" y="206">clean May 2.0095: false alarm</text>
+
+        <text class="s3cS" x="160" y="268" text-anchor="middle">1.95</text>
+        <text class="s3cS" x="400" y="268" text-anchor="middle">1.98</text>
+        <text class="s3cS" x="640" y="268" text-anchor="middle">2.01</text>
+
+        <text class="s3cN" x="24" y="296">The clean month is 1.4% off week 1. A 1% band calls that a fault; 15% passes it and still fails the bug.</text>
+        <text class="s3cS" x="24" y="316">Bench, all 17 tests at tight thresholds: 3 false alarms on clean data, and no extra bug caught.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - the band is a choice: set it from how much a good batch moves, then check that the bug you fear lands outside it</figcaption>
+    </figure>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>A stored profile from a known-good week<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>A distribution check needs something to compare with. Wrenfold stores a profile from week 1 of a run it trusts (Constructed Wrenfold example): the median trip, 1.982 km, and the share of departures in each hour of the day, which peaks at 17:00 in that week. Each new batch is compared with that stored profile, never with itself.</p>
+        <p>Two checks read it. <strong>Median-km drift</strong> fails if the batch median moves more than a set fraction from 1.982. <strong>Hour-profile drift</strong> measures the total variation distance between the batch's 24 hour shares and the stored ones: half the sum of the absolute differences, 0 for identical profiles, 1 for profiles with nothing in common. On the clean May run the median is 2.0095 km, 1.4% above week 1, and the hour-profile distance is 0.0415. Even the peak moves: the whole month peaks at 16:00, with 10.3% of departures. A good batch is never identical to the profile, which is exactly why the threshold matters.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Choose the threshold from the known-good value, not from fear<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Wrenfold's normal thresholds are a median within 15% of the profile and an hour-profile distance of at most 0.08. The clean month passes both, with room. The bugs these checks exist for land far outside: the km/miles bug moves the median to 1.2486, 37% below; the timezone bug moves the hour-profile distance to 0.2795, the off-by-one hour bug to 0.1062.</p>
+        <p>Now tighten them to 1% and 0.02, as a nervous team might after an incident. On the bench, with all 17 tests at tight thresholds, the clean pipeline raises 3 false alarms: median-km drift, hour-profile drift and the holdout metric. The bug count does not go up: 12 caught either way. Tight thresholds bought noise, not coverage. A check that fires on good data teaches the team to ignore it, and then it is worse than no check.</p>
+        <p>Where the line should sit is genuinely contested. One side: a loose band lets slow real drift through. The other: a tight band fires on normal variation and burns trust. The bench shows the cost of each on one pipeline; no rule of thumb we found settles it in general. Treat the threshold as a business choice you write down, not a statistical fact: measure how far good batches move, set the band outside that, and confirm the bug you fear lands outside the band.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>Drift after deploy is monitoring<span class="mini">1 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Tonight's distribution checks gate a batch before it ships: they run once, on the rows a commit or a nightly run produced, and a failure stops the release. Watching the same statistics on live traffic over weeks, with alerting and someone on call, is monitoring, and it has its own methods and its own false-alarm economics. Read <a href="https://phoebefu6.github.io/learn-data-observability-with-phoebe/courses/b5-distribution-drift.html">Learn Data Observability, session b5</a> for drift detection and <a href="https://phoebefu6.github.io/learn-ml-production-with-phoebe/courses/05-monitor-what-you-will-act-on.html">Learn ML Production, session 5</a> for choosing what to monitor at all.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>A column that quietly went from 90% to 60%.</strong> Rule 10 of Zinkevich's Rules of Machine Learning is "Watch for silent failures". Its examples: Google Play once had a table that was stale for six months, and refreshing it alone gave a 2% boost in install rate; and a feature column populated in 90% of examples can suddenly drop to 60%. Neither crashes anything. Both are what a distribution check on a stored profile exists to notice: the share of non-null values in a column, compared with the share in a batch you trusted.</p>
+    </div>
+  </section>
+
+  <section class="section" id="demo-1">
+    <div class="section-kicker">
+      <span class="klabel">Build-along</span>
+      <h2>A check suite for Wrenfold's cleaned trips</h2>
+      <span class="tag demo">★ 22 min · everyone builds</span>
+    </div>
+    <p class="lede">You write the eight checks as Python, in the boxes below, in the order they will run (Constructed Wrenfold example). Read each one, edit it to taste, and write down what you expect it to fail on. Nothing runs here: running it on your own machine is Self-study, and on your own pipeline your numbers will differ. Session 4 runs exactly these rules against all twelve bugs on the real HSL trips.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 358" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Wrenfold's suite as eight checks in run order with modelled costs: 1 schema, 2 units, reads id pattern, cap and km types, catches 1 of 12 bugs; 2 reconcile, 3 units, filled teal, reads row counts at three stages, catches 5; 3 unique, 3 units, reads the five-column trip key, catches 2; 4 range, 2 units, reads km, dur and hour, catches 3; 5 referential, 3 units, reads r against the station table, catches 2; 6 median-km drift, 5 units, reads km against the stored 1.982, catches 1; 7 hour-profile drift, 5 units, reads hour shares against week 1, catches 2; 8 split, 1 unit, reads the days the fit used, catches 1. A bar below splits one run's 24 units across the eight checks; the two distribution checks take 10.">
+        <defs>
+          <filter id="s3dSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="59" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="s3dHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#804F00" stroke-width="1" opacity=".5"/></pattern>
+          <marker id="s3dAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A1F12" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .s3dH { font: 800 12px Inter, sans-serif; fill: #2A1F12; }
+          .s3dL { font: 600 12px Inter, sans-serif; fill: #2A1F12; }
+          .s3dS { font: 400 11px Inter, sans-serif; fill: #5E5243; }
+          .s3dB { font: 800 11px Inter, sans-serif; fill: #0B5A50; }
+          .s3dV { font: 800 16px Inter, sans-serif; fill: #5A3700; }
+          .s3dA { font: 700 11px Inter, sans-serif; fill: #804F00; }
+          .s3dN { font: 400 12px Inter, sans-serif; fill: #5E5243; }
+        </style>
+
+        <text class="s3dH" x="24" y="30">WRENFOLD'S CHECK SUITE, IN RUN ORDER</text>
+        <text class="s3dS" x="330" y="30">Constructed Wrenfold example; costs are modelled bench units</text>
+
+        <g filter="url(#s3dSk)" fill="none" stroke="#2A1F12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="30" y="54" width="190" height="80" rx="10" transform="rotate(-0.6 125 94)" fill="#FFFFFF"/>
+          <rect x="240" y="54" width="190" height="80" rx="10" transform="rotate(0.5 335 94)" fill="#7DD3C6"/>
+          <rect x="450" y="54" width="190" height="80" rx="10" transform="rotate(-0.4 545 94)" fill="#FFFFFF"/>
+          <rect x="660" y="54" width="190" height="80" rx="10" transform="rotate(0.6 755 94)" fill="#FFFFFF"/>
+          <path d="M222 94 L236 94" marker-end="url(#s3dAr)"/>
+          <path d="M432 94 L446 94" marker-end="url(#s3dAr)"/>
+          <path d="M642 94 L656 94" marker-end="url(#s3dAr)"/>
+          <path d="M755 137 L755 156 L125 156 L125 172" marker-end="url(#s3dAr)"/>
+          <rect x="30" y="176" width="190" height="80" rx="10" transform="rotate(0.5 125 216)" fill="#FFFFFF"/>
+          <rect x="240" y="176" width="190" height="80" rx="10" transform="rotate(-0.5 335 216)" fill="#FBF3E4"/>
+          <rect x="450" y="176" width="190" height="80" rx="10" transform="rotate(0.4 545 216)" fill="#FBF3E4"/>
+          <rect x="660" y="176" width="190" height="80" rx="10" transform="rotate(-0.6 755 216)" fill="#FFFFFF"/>
+          <path d="M222 216 L236 216" marker-end="url(#s3dAr)"/>
+          <path d="M432 216 L446 216" marker-end="url(#s3dAr)"/>
+          <path d="M642 216 L656 216" marker-end="url(#s3dAr)"/>
+
+          <rect x="30" y="292" width="66" height="28" rx="4" fill="#FFFFFF"/>
+          <rect x="100" y="292" width="99" height="28" rx="4" fill="#7DD3C6"/>
+          <rect x="203" y="292" width="98" height="28" rx="4" fill="#FFFFFF"/>
+          <rect x="305" y="292" width="65" height="28" rx="4" fill="#FFFFFF"/>
+          <rect x="374" y="292" width="98" height="28" rx="4" fill="#FFFFFF"/>
+          <rect x="476" y="292" width="167" height="28" rx="4" fill="url(#s3dHc)"/>
+          <rect x="647" y="292" width="167" height="28" rx="4" fill="url(#s3dHc)"/>
+          <rect x="818" y="292" width="32" height="28" rx="4" fill="#FFFFFF"/>
+        </g>
+
+        <text class="s3dH" x="42" y="76">1 Schema</text>
+        <text class="s3dV" x="208" y="78" text-anchor="end">2</text>
+        <text class="s3dS" x="42" y="98">id pattern, cap, km types</text>
+        <text class="s3dB" x="42" y="118">catches 1 of 12</text>
+
+        <text class="s3dH" x="252" y="76">2 Reconcile</text>
+        <text class="s3dV" x="418" y="78" text-anchor="end">3</text>
+        <text class="s3dL" x="252" y="98">row counts at 3 stages</text>
+        <text class="s3dB" x="252" y="118">catches 5 of 12</text>
+
+        <text class="s3dH" x="462" y="76">3 Unique</text>
+        <text class="s3dV" x="628" y="78" text-anchor="end">3</text>
+        <text class="s3dS" x="462" y="98">the 5-column trip key</text>
+        <text class="s3dB" x="462" y="118">catches 2 of 12</text>
+
+        <text class="s3dH" x="672" y="76">4 Range</text>
+        <text class="s3dV" x="838" y="78" text-anchor="end">2</text>
+        <text class="s3dS" x="672" y="98">km, dur, hour</text>
+        <text class="s3dB" x="672" y="118">catches 3 of 12</text>
+
+        <text class="s3dH" x="42" y="198">5 Referential</text>
+        <text class="s3dV" x="208" y="200" text-anchor="end">3</text>
+        <text class="s3dS" x="42" y="220">r vs the station table</text>
+        <text class="s3dB" x="42" y="240">catches 2 of 12</text>
+
+        <text class="s3dH" x="252" y="198">6 Median-km drift</text>
+        <text class="s3dV" x="418" y="200" text-anchor="end">5</text>
+        <text class="s3dS" x="252" y="220">km vs stored 1.982</text>
+        <text class="s3dB" x="252" y="240">catches 1 of 12</text>
+
+        <text class="s3dH" x="462" y="198">7 Hour-profile drift</text>
+        <text class="s3dV" x="628" y="200" text-anchor="end">5</text>
+        <text class="s3dS" x="462" y="220">hour shares vs week 1</text>
+        <text class="s3dB" x="462" y="240">catches 2 of 12</text>
+
+        <text class="s3dH" x="672" y="198">8 Split</text>
+        <text class="s3dV" x="838" y="200" text-anchor="end">1</text>
+        <text class="s3dS" x="672" y="220">days the fit used</text>
+        <text class="s3dB" x="672" y="240">catches 1 of 12</text>
+
+        <text class="s3dA" x="30" y="284">ONE RUN OF THE SUITE: 24 MODELLED UNITS</text>
+        <text class="s3dL" x="63" y="311" text-anchor="middle">2</text>
+        <text class="s3dL" x="149" y="311" text-anchor="middle">3</text>
+        <text class="s3dL" x="252" y="311" text-anchor="middle">3</text>
+        <text class="s3dL" x="337" y="311" text-anchor="middle">2</text>
+        <text class="s3dL" x="423" y="311" text-anchor="middle">3</text>
+        <text class="s3dL" x="559" y="311" text-anchor="middle">5</text>
+        <text class="s3dL" x="730" y="311" text-anchor="middle">5</text>
+        <text class="s3dL" x="834" y="311" text-anchor="middle">1</text>
+
+        <text class="s3dN" x="24" y="344">The two distribution checks are 10 of the 24 units. Reconcile catches the most bugs, for 3.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - eight checks, 24 modelled units; catches are at normal thresholds, measured on the session 4 bench</figcaption>
+    </figure>
+
+    <div class="steps">
+      <div class="step">
+        <p><strong>Write the schema and range rules as one pandera schema.</strong> Schema and range are separate checks on the bench (2 units each), but in pandera they sit naturally in one object, so the comments mark which line is which. Notice the km rule: missing is allowed, 0.0 is not.</p>
+        <div class="prompt-box good"><span class="label">★ Step 1 · a pandera schema for cleaned trips</span>import pandera.pandas as pa
+
+ID = r"^\d{3}$"   # station ids are three-digit text: "030", not 30
+
+trips_schema = pa.DataFrameSchema({
+    # schema: types and id pattern
+    "s":    pa.Column(str, pa.Check(lambda x: x.str.match(ID))),
+    "r":    pa.Column(str, pa.Check(lambda x: x.str.match(ID))),
+    "cap":  pa.Column(int),
+    # schema + range: km is a float, missing allowed, else in (0, 50]
+    "km":   pa.Column(float, pa.Check(lambda x: (x &gt; 0) &amp; (x &lt;= 50)), nullable=True),
+    # range: the cleaner's own rules, checked on its output
+    "dur":  pa.Column(int, pa.Check.ge(60)),
+    "hour": pa.Column(int, pa.Check.isin(list(range(744)))),   # 31 days x 24 hours
+})
+
+trips_schema.validate(clean_df, lazy=True)   # raises pa.errors.SchemaErrors with every failure</div>
+      </div>
+      <div class="step">
+        <p><strong>Write the reconciliation in plain pandas, with its own counting.</strong> It must not import a single function from the pipeline. It re-reads the raw file with ids as text, deduplicates and applies the 60-second rule with its own lines, and only then compares. If you catch yourself calling <code>clean()</code> here, stop: you are comparing the pipeline with itself.</p>
+        <div class="prompt-box good"><span class="label">★ Step 2 · reconcile raw, clean and aggregate</span>import pandas as pd
+
+FORECAST = ["030", "126", "113", "041", "021"]
+
+def check_reconcile(raw_path, stations_path, clean_df, agg_total):
+    # independent recount: read everything as text, never reuse pipeline code
+    raw = pd.read_csv(raw_path, dtype=str)
+    stations = pd.read_csv(stations_path, dtype=str)
+    distinct = raw.drop_duplicates()
+    long_enough = distinct[pd.to_numeric(distinct["dur"]) &gt;= 60]
+    known = long_enough[long_enough["r"].isin(set(stations["id"]))]
+    expected_clean = len(known)
+    assert len(clean_df) == expected_clean, (
+        f"clean has {len(clean_df)} rows, the raw file says {expected_clean}")
+
+    # the aggregate must count exactly the clean departures it is meant to count
+    in_scope = clean_df["s"].isin(FORECAST) &amp; clean_df["hour"].between(0, 743)
+    expected_agg = int(in_scope.sum())
+    assert agg_total == expected_agg, (
+        f"aggregate total {agg_total}, expected {expected_agg} departures")</div>
+      </div>
+      <div class="step">
+        <p><strong>Add uniqueness and the referential rule.</strong> Uniqueness reads the five-column key. Referential reads two numbers the cleaner already reports, kept and rejected, plus the station table. The 0.2% allowance is there because the real HSL file has return stations that are not in the table.</p>
+        <div class="prompt-box good"><span class="label">★ Step 3 · unique and referential</span>KEY = ["sec", "dur", "dm", "s", "r"]
+
+def check_unique(clean_df):
+    dupes = int(clean_df.duplicated(subset=KEY).sum())
+    assert dupes == 0, f"{dupes} rows repeat a trip key"
+
+def check_referential(kept, rejected, stations, max_rate=0.002):
+    rate = rejected / kept
+    assert rate &lt;= max_rate, f"{rate:.2%} of trips point at an unknown station"
+    missing = set(FORECAST) - set(stations["id"])
+    assert not missing, f"forecast stations missing from the table: {missing}"</div>
+      </div>
+      <div class="step">
+        <p><strong>Add the two distribution checks against a stored profile.</strong> The profile is a dict you save from week 1 of a run you trust; the thresholds are the normal ones. Write the threshold next to the profile, where a reviewer will see it.</p>
+        <div class="prompt-box good"><span class="label">★ Step 4 · median-km drift and hour-profile drift</span>PROFILE = {                      # stored from week 1 of a known-good run
+    "median_km": 1.982,
+    "hour_share": [...],         # 24 shares of departures by hour of day, saved with it
+}
+THRESHOLDS = {"median_rel": 0.15, "hour_tvd": 0.08}   # normal, chosen from good batches
+
+def check_median_km(clean_df):
+    med = clean_df["km"].median()                     # pandas skips missing km
+    change = abs(med / PROFILE["median_km"] - 1)
+    assert change &lt;= THRESHOLDS["median_rel"], (
+        f"median {med:.4f} km is {change:.1%} away from the profile")
+
+def check_hour_profile(clean_df):
+    share = (clean_df["hour"] % 24).value_counts(normalize=True)
+    share = share.reindex(range(24), fill_value=0.0)
+    tvd = 0.5 * (share - pd.Series(PROFILE["hour_share"])).abs().sum()
+    assert tvd &lt;= THRESHOLDS["hour_tvd"], f"hour profile moved {tvd:.4f} from week 1"</div>
+      </div>
+      <div class="step">
+        <p><strong>Add the split check.</strong> One line of logic, 1 modelled unit, and the only check on the bench that fails on target leakage.</p>
+        <div class="prompt-box good"><span class="label">★ Step 5 · no scored day in the fit</span>TRAIN_LAST_DAY = 21   # fit on 1-21 May, score on 22-31 May
+
+def check_split(fit_days):
+    assert max(fit_days) &lt;= TRAIN_LAST_DAY, (
+        f"the fit used day {max(fit_days)}, which is a scored day")</div>
+      </div>
+      <div class="step">
+        <p><strong>Predict what session 4 will print.</strong> Before you open the bench, fill in the two blank rows of the ladder. Start from what session 2 measured: the smoke test alone catches nothing, and the four unit tests catch 7 of 12 for 5 units with the smoke test included.</p>
+        <div class="prompt-box good"><span class="label">★ Step 6 · your prediction for the ladder</span>WRENFOLD TEST PLAN v0, page three (constructed)
+Rung                       caught   ship   units (modelled)
+As found (smoke only)         0      12       1
++ unit tests                  7       5       5
++ schema                    ___     ___     ___
++ data checks (all eight)   ___     ___     ___</div>
+        <p>Then check yourself. Session 4 prints: <strong>+ schema</strong> 8 caught, 4 ship, 7 units; <strong>+ data checks</strong> 12 caught, 0 ship, 29 units, with the smoke and unit tests included (1 + 4 + 24). The eight data checks on their own catch 11 of the 12; the twelfth, train/serve skew, is caught by session 2's parity unit test.</p>
+      </div>
+    </div>
+
+    <div class="callout tip">
+      <p><strong>Every check gets a bug it would fail on.</strong> Before a check joins the suite, name the bug it exists for and confirm, on a batch with that bug, that it fails. A check you have never seen fail is a check you have not tested.</p>
+    </div>
+  </section>
+
+  <section class="section" id="exercise">
+    <div class="section-kicker">
+      <span class="klabel">Homework</span>
+      <h2>Before session 4</h2>
+      <span class="tag exercise">30 min</span>
+    </div>
+    <ol>
+      <li><strong>Finish Wrenfold's suite on paper.</strong> For each of the eight checks, write the one bug from the inventory you expect it to fail on first, and the bug you expect it to miss that you most wish it caught.</li>
+      <li><strong>Write a reconciliation for one table you own.</strong> Raw count, clean count, aggregate total, each computed by code that shares nothing with the pipeline. Note where your two counts disagree today, and why.</li>
+      <li><strong>Store one profile.</strong> Pick one column in a batch you trust, save its median (or its null share) and look at how far the last four good batches moved from it. Set a threshold outside that movement and write the reason next to it.</li>
+      <li><strong>Find a check that has never failed.</strong> In a suite you run, pick one data check and build a batch that should break it. If it stays green, you have found a check that reads the wrong thing.</li>
+    </ol>
+  </section>
+
+  <section class="section" id="quiz">
+    <div class="section-kicker">
+      <span class="klabel">Check yourself</span>
+      <h2>Three questions</h2>
+    </div>
+    <p>Clear all three and session 3 gets stamped in your passport.</p>
+
+    <div class="quiz-q" data-answer="2">
+      <p class="qtext">1 · A teammate writes Wrenfold's reconciliation by calling the pipeline's own <code>clean()</code> on the raw file and comparing its row count with the pipeline's output. Why will this check miss the type coercion bug?</p>
+      <button class="qopt" type="button">A · Reconciliation never catches type bugs; only the schema check can</button>
+      <button class="qopt" type="button">B · The counts are too large to compare exactly</button>
+      <button class="qopt" type="button">C · The recount runs the same buggy code that turned "030" into "30", so both sides lose the same 8,395 trips and agree; only counting code that is independent of the pipeline's can disagree with it</button>
+      <button class="qopt" type="button">D · Type coercion does not change the row count</button>
+      <p class="qwhy">A check that reuses the code under test agrees with every bug in it. Wrenfold's reconcile re-reads ids as text with its own lines, so it still expects 13,465 rows while the buggy pipeline writes 5,071.</p>
+    </div>
+
+    <div class="quiz-q" data-answer="0">
+      <p class="qtext">2 · The stored week-1 median trip is 1.982 km. The clean May run has a median of 2.0095 km. Why does a plus or minus 1% band raise an alarm on that clean month?</p>
+      <button class="qopt" type="button">A · The clean month is 1.4% above week 1, which is ordinary variation between a week and a month, and a 1% band is narrower than that variation, so it fires on good data: a false alarm</button>
+      <button class="qopt" type="button">B · The clean month has a hidden bug the 15% band misses</button>
+      <button class="qopt" type="button">C · The median should never be used for distances</button>
+      <button class="qopt" type="button">D · 2.0095 is outside the 15% band too</button>
+      <p class="qwhy">The 15% band runs from about 1.685 to 2.279 km, so the clean month passes it and the km/miles bug at 1.2486 still fails it. On the bench, tight thresholds add 3 false alarms and catch no extra bug.</p>
+    </div>
+
+    <div class="quiz-q" data-answer="3">
+      <p class="qtext">3 · With the stale reference table bug, 65 trips are rejected (0.48%) and the forecast error is 1.9062. At normal thresholds, which of the seventeen tests on the bench fails?</p>
+      <button class="qopt" type="button">A · The holdout metric, because the error got worse</button>
+      <button class="qopt" type="button">B · Reconcile, because the row count changed</button>
+      <button class="qopt" type="button">C · The median-km drift check and the hour-profile drift check</button>
+      <button class="qopt" type="button">D · Only the referential check: 0.48% of trips pointing at unknown stations is above its 0.2% allowance</button>
+      <p class="qwhy">The error 1.9062 is under the 2.2 bar, the reconcile recount uses the same station table the pipeline joined, and distributions barely move. Only a check that reads the reference table itself notices that it is missing stations.</p>
+    </div>
+
+    <p class="quiz-score"></p>
+  </section>
+
+  <section class="section" id="official">
+    <div class="section-kicker">
+      <span class="klabel">Sources covered</span>
+      <h2>What this session teaches, and where it came from</h2>
+    </div>
+    <div class="covered">
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">Great Expectations, GX Core 1.25.0</span><span class="note">docs.greatexpectations.io: Expectation as a verifiable assertion, classes under gx.expectations, ExpectationSuite and add_expectation; 0.18 docs no longer maintained; read at source</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">pandera 0.36.0</span><span class="note">pandera.readthedocs.io: DataFrameSchema, Column, Check.ge, Check.isin, custom checks, lazy=True and SchemaErrors, DataFrameModel with Field, import pandera.pandas; read at source</span></div>
+      <div class="covered-row"><span class="status pill light">◐</span><span class="name">dbt data tests</span><span class="note">docs.getdbt.com, "Add data tests to your DAG": failing-row selects, singular and generic, the four built-ins, the rename; read at source, named here and taught in Learn Analytics Engineering a3</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">Rules of Machine Learning, Rule 10</span><span class="note">Zinkevich, Google for Developers: "Watch for silent failures", the stale Play table and the 90% to 60% column; read at source</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">HSL city bike trips and stations</span><span class="note">HSL / City Bike Finland, May 2021 OD data and station table, CC BY 4.0: every row twice, 3 station ids missing from 457 stations; downloaded and counted</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">Wrenfold</span><span class="note">Constructed example; every check rule and number above is one the session 4 bench runs and prints</span></div>
+    </div>
+    <p class="mono" style="margin-top:14px">Every fact on this page, and its verification tier, is recorded in the course's source map.</p>
+  </section>
+
+  <section class="cheat" id="cheatsheet">
+    <h3>Session 3 cheat sheet <span>· pin this</span></h3>
+    <div class="grid-2">
+      <div class="cheat-item"><b>Data checks read rows</b><span>Every row of every real batch, so they see bugs no fixture exercised and bugs outside your code.</span></div>
+      <div class="cheat-item"><b>Static first</b><span>Schema, range, unique, referential: rules that hold forever, need no history, raise no false alarms.</span></div>
+      <div class="cheat-item"><b>Reconcile independently</b><span>Recount raw, clean and aggregate with code that shares nothing with the pipeline. 5 bugs for 3 units.</span></div>
+      <div class="cheat-item"><b>Check the split</b><span>One unit, the only catch for leakage: no scored day may appear in the fit.</span></div>
+      <div class="cheat-item"><b>One idea, three tools</b><span>GX Core 1.x expectations, pandera schemas, dbt data tests: name the rule, find the failing rows.</span></div>
+      <div class="cheat-item"><b>Bands from good data</b><span>Set a distribution threshold outside how far good batches move. Tighter adds false alarms, not catches.</span></div>
+    </div>
+  </section>
+
+  <div class="callout next">
+    <span class="nx-pill">Next session</span>
+    <p>You now have a smoke test, four unit tests and eight data checks, plus guesses for what each one catches. Session 4 is the bench: every test runs against every one of the twelve bugs on the real HSL trips, the catch matrix fills itself in, thresholds can be tightened to watch the false alarms arrive, and an exhaustive search finds the cheapest set that lets no bug ship.</p>
+  </div>
+
+  <footer class="pagefoot">
+    <span>Session 3 of 6 · learn-testing-data-ml-code-with-phoebe · by Phoebe Fu &nbsp;·&nbsp; 📚 <a href="https://phoebefu6.github.io/learn-with-phoebe/">Learn with Phoebe ↗</a></span>
+    <span><a href="02-unit-tests-for-transforms.html">← Prev: Unit tests for transforms</a> &nbsp;·&nbsp; <a href="04-the-bug-catcher.html">Next: The bug catcher →</a></span>
+  </footer>
+
+</main>
+
+<script src="../assets/app.js?v=1"></script>
+</body>
+</html>

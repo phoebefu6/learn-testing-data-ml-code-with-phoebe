@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- social:start -->
+<meta name="description" content="Session 1 of 6. Data and ML code fails silently: the job succeeds and the number is wrong. The twelve bug classes data pipelines and models ship, a test pyramid redrawn for data, and a real pipeline you can break in the page.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Learn with Phoebe">
+<meta property="og:title" content="What test would fail? - learn testing data ml code with phoebe">
+<meta property="og:description" content="Session 1 of 6. Silent failure, twelve bug classes, and a pyramid for data. Break a real pipeline and watch the existing test stay green.">
+<meta property="og:url" content="https://phoebefu6.github.io/learn-testing-data-ml-code-with-phoebe/courses/01-what-test-would-fail.html">
+<meta property="og:image" content="https://phoebefu6.github.io/learn-testing-data-ml-code-with-phoebe/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="What test would fail? - learn testing data ml code with phoebe">
+<meta name="twitter:description" content="Session 1 of 6. The job succeeded, the number is wrong: twelve bug classes and the tests that would notice.">
+<meta name="twitter:image" content="https://phoebefu6.github.io/learn-testing-data-ml-code-with-phoebe/assets/og-cover.png">
+<!-- social:end -->
+<title>Session 1 · What test would fail? - learn testing data ml code with phoebe</title>
+<link rel="stylesheet" href="../assets/style.css?v=1">
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="wrap">
+    <span class="crumb"><a href="../index.html">learn-testing-data-ml-code-with-phoebe</a> / Session 1 of 6</span>
+    <button class="btn" id="toggle-all" type="button">Expand all</button>
+    <button class="btn primary" id="zoom-toggle" type="button">Projector zoom: off</button>
+  </div>
+</div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="eyebrow">Learn Testing Data &amp; ML Code with Phoebe · Session 1 of 6</div>
+    <h1>What test would fail if the <span class="accent">code were wrong</span>?</h1>
+    <p class="sub">A web service that breaks throws an error and someone gets paged. A data pipeline that breaks usually does neither: the job finishes, the table refreshes, the dashboard looks normal, and a number in it is wrong. Tonight we name the twelve ways a data and ML pipeline goes wrong quietly, redraw the test pyramid for code, data and model, and break a real pipeline in the page while its only test stays green.</p>
+    <div class="chip-row">
+      <span class="chip level">🟢 Foundations</span>
+      <span class="chip audience">Data, analytics and ML engineers who write pandas</span>
+      <span class="chip audience">No install: it all runs in the page</span>
+      <span class="chip time">45 min</span>
+    </div>
+    <div class="agenda">
+      <span class="a1" style="flex:1">0-3 · Welcome</span>
+      <span class="a2" style="flex:4">3-18 · Silent failure, twelve bugs, a pyramid for data</span>
+      <span class="a3" style="flex:5">18-40 · Build-along: break a transform</span>
+      <span class="a4" style="flex:1">40-45 · Q&amp;A</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="section" id="intro">
+    <div class="section-kicker">
+      <span class="klabel">Part 0</span>
+      <h2>Where we start</h2>
+    </div>
+    <p class="lede">One question runs through all six sessions: for each bug your pipeline could ship, which test would fail, and what does that test cost to run? We carry one running case the whole way, the Constructed Wrenfold example: a city bike-share operator whose pipeline turns raw trips into cleaned trips, then into departures per station per hour, then into a demand forecast that decides where the vans move bikes overnight. Wrenfold is invented. The trips are not: its pipeline runs on 13,810 real trips from HSL's Helsinki city bike data for May 2021, and every number on these pages is one the pipeline in your browser actually prints.</p>
+
+    <div class="legend">
+      <span class="pill">🎫 Clear all three quiz questions to stamp your passport</span>
+      <span class="pill">Live = presented in the 45 minutes</span>
+      <span class="pill">Self-study = the full depth, after class</span>
+      <span class="pill">★ Build-along = do it yourself, in the page</span>
+    </div>
+
+    <div class="callout win">
+      <p><strong>★ What you walk out with tonight.</strong> Wrenfold's bug inventory: twelve named ways its pipeline can be wrong while every job is green, each with the stage it enters at and your first guess at the test that would fail. It is page one of Wrenfold's test plan, and session 4 measures your guesses.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-1">
+    <div class="section-kicker">
+      <span class="klabel">Part 1 · covers silent failure</span>
+      <h2>The job succeeded. The number is wrong.</h2>
+      <span class="tag concept">5 min live</span>
+    </div>
+    <p class="lede">Most software tests were designed for code that fails loudly: a wrong type throws, a missing key crashes, a bad request returns an error. Data code fails in a different shape. A wrong value is still a valid float, a duplicated row is still a valid row, a shifted hour is still an hour between 0 and 23. The pipeline has no reason to stop, so the only check most teams start with, "did the job run and write rows?", stays green.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 310" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Wrenfold's pipeline as four boxes: raw trips, clean, station-hour counts, forecast. A bug enters at the clean step and changes values, not the shape of the rows, so the wrong values flow through counts and forecast unchanged in form. The only check reads the exit code and a row count after the forecast, and it reports green.">
+        <defs>
+          <filter id="s1aSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="11" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="s1aHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#804F00" stroke-width="1" opacity=".5"/></pattern>
+          <marker id="s1aAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A1F12" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .s1aH { font: 800 12px Inter, sans-serif; fill: #2A1F12; }
+          .s1aL { font: 600 12px Inter, sans-serif; fill: #2A1F12; }
+          .s1aS { font: 400 11px Inter, sans-serif; fill: #5E5243; }
+          .s1aR { font: 800 11px Inter, sans-serif; fill: #991B1B; }
+          .s1aV { font: 800 16px Inter, sans-serif; fill: #2A1F12; }
+          .s1aN { font: 400 12px Inter, sans-serif; fill: #5E5243; }
+        </style>
+
+        <text class="s1aH" x="30" y="30">WRENFOLD'S PIPELINE, ONE BUG IN IT</text>
+        <text class="s1aS" x="290" y="30">Constructed Wrenfold example; the trips are real HSL rows</text>
+
+        <g filter="url(#s1aSk)" fill="none" stroke="#2A1F12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="30" y="70" width="180" height="72" rx="10" transform="rotate(-0.6 120 106)" fill="url(#s1aHc)"/>
+          <rect x="240" y="70" width="180" height="72" rx="10" transform="rotate(0.5 330 106)" fill="#FFFFFF" stroke="#991B1B"/>
+          <rect x="450" y="70" width="180" height="72" rx="10" transform="rotate(-0.4 540 106)" fill="#FBF3E4"/>
+          <rect x="660" y="70" width="190" height="72" rx="10" transform="rotate(0.6 755 106)" fill="#FBF3E4"/>
+          <path d="M212 106 L236 106" marker-end="url(#s1aAr)"/>
+          <path d="M422 106 L446 106" marker-end="url(#s1aAr)"/>
+          <path d="M632 106 L656 106" marker-end="url(#s1aAr)"/>
+          <path d="M330 146 C330 172 380 174 450 174 L700 174 C730 174 740 166 740 148" stroke="#991B1B" stroke-dasharray="7 5"/>
+          <path d="M820 146 L820 210" marker-end="url(#s1aAr)"/>
+          <rect x="610" y="214" width="240" height="56" rx="12" transform="rotate(-0.5 730 242)" fill="#7DD3C6"/>
+        </g>
+
+        <text class="s1aH" x="44" y="98">Raw trips</text>
+        <text class="s1aS" x="44" y="116">the HSL file, every row twice</text>
+        <text class="s1aS" x="44" y="131">27,620 lines in the sample</text>
+
+        <text class="s1aH" x="254" y="98">Clean</text>
+        <text class="s1aS" x="254" y="116">dedup, km, hour, station join</text>
+        <text class="s1aR" x="254" y="131">a bug lands here</text>
+
+        <text class="s1aH" x="464" y="98">Station-hour counts</text>
+        <text class="s1aS" x="464" y="116">departures per station</text>
+        <text class="s1aS" x="464" y="131">per hour, 744 hours</text>
+
+        <text class="s1aH" x="674" y="98">Forecast</text>
+        <text class="s1aS" x="674" y="116">where the vans move bikes</text>
+        <text class="s1aS" x="674" y="131">for 22-31 May</text>
+
+        <text class="s1aR" x="380" y="196">wrong values travel on; every row still has the right shape</text>
+
+        <text class="s1aL" x="30" y="234">What the check reads: the exit code and a row count.</text>
+        <text class="s1aL" x="30" y="254">What the bug changed: the values inside the rows.</text>
+
+        <text class="s1aH" x="626" y="238">The only check: job ran, rows &gt; 0</text>
+        <text class="s1aV" x="626" y="260">green</text>
+
+        <text class="s1aN" x="30" y="296">A check that reads the exit code cannot see a bug that changes values. That is most bugs in data code.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - the bug and the check never meet: one changes values, the other only counts rows</figcaption>
+    </figure>
+
+    <details class="card" open>
+      <summary><span class="mode live">Live</span>Loud failures and quiet ones<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p><strong>Loud.</strong> The input file is missing, a column is renamed and the code throws <code>KeyError</code>, the warehouse is down. The job goes red, an alert fires, somebody fixes it. Annoying, but the wrong number never reaches a reader.</p>
+        <p><strong>Quiet.</strong> A distance is read in metres and divided as if it were miles. A join adds a second row for two stations. A timestamp written in local time is parsed as UTC. Each of these produces rows of the right type, in the right columns, in roughly the right quantity. Nothing throws. The forecast still forecasts. It is just forecasting the wrong thing, and the first person to notice is usually a user who knows what the answer should look like.</p>
+        <p>The working rule for the rest of the sessions follows from that: for every quiet bug you can name, ask which test would fail. If the honest answer is "none of the ones we run", the bug ships.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>Why a green suite can still lie (one-card recap)<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>The general argument, that a passing suite proves only that the tests you wrote pass, and that a test is worth what it would catch, is taught properly in <a href="https://phoebefu6.github.io/learn-ai-qa-with-phoebe/courses/01-the-green-suite-lie.html">Learn AI QA, session 1</a> and <a href="https://phoebefu6.github.io/learn-ai-qa-with-phoebe/courses/02-what-a-test-is-for.html">session 2</a>. Read those for software in general. What is different here is where the lie comes from: in application code it is usually a missing test; in data code it is often a test that reads the wrong thing, such as the exit code instead of the values.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>A public file with every row in it twice.</strong> HSL publishes Helsinki's city bike trips as monthly CSV files under a CC BY 4.0 licence. The May 2021 file has 814,676 data lines and only 407,338 distinct rows: every trip appears exactly twice, one line after the other. We counted it while building the bench. A pipeline that loads it without a de-duplication step doubles every count it produces, runs without a single error, and keeps doing so every month.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-2">
+    <div class="section-kicker">
+      <span class="klabel">Part 2 · covers the bug classes of data and ML code</span>
+      <h2>Twelve ways the pipeline can be wrong</h2>
+      <span class="tag concept">6 min live</span>
+    </div>
+    <p class="lede">The useful unit is not "a bug" but a bug class: a kind of mistake that recurs across teams, with a predictable place it enters and a predictable test that would notice it. Here are the twelve that Wrenfold's pipeline is built to suffer, placed at the stage where each one gets in. Every one of them is a real code-path change in the session 4 bench, not a description.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 304" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Twelve bug classes placed under the pipeline stage where each enters. Load: duplicated trips, type coercion. Clean: null coercion, km and miles mismatch, timezone shift, off-by-one hour. Join: join fan-out, stale reference table. Aggregate: dropped station, label shift. Fit: target leakage. Serve: train and serve skew. The last three model bugs are filled teal.">
+        <defs>
+          <filter id="s1bSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="23" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="s1bAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A1F12" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .s1bH { font: 800 12px Inter, sans-serif; fill: #2A1F12; }
+          .s1bL { font: 600 11px Inter, sans-serif; fill: #2A1F12; }
+          .s1bA { font: 700 11px Inter, sans-serif; fill: #804F00; }
+          .s1bS { font: 400 11px Inter, sans-serif; fill: #5E5243; }
+          .s1bN { font: 400 12px Inter, sans-serif; fill: #5E5243; }
+        </style>
+
+        <text class="s1bA" x="24" y="30">PIPELINE ORDER</text>
+
+        <g filter="url(#s1bSk)" fill="none" stroke="#2A1F12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M140 26 L850 26" marker-end="url(#s1bAr)"/>
+          <rect x="24" y="46" width="132" height="32" rx="16" transform="rotate(-0.5 90 62)" fill="#FBF3E4"/>
+          <rect x="164" y="46" width="132" height="32" rx="16" transform="rotate(0.5 230 62)" fill="#FBF3E4"/>
+          <rect x="304" y="46" width="132" height="32" rx="16" transform="rotate(-0.4 370 62)" fill="#FBF3E4"/>
+          <rect x="444" y="46" width="132" height="32" rx="16" transform="rotate(0.4 510 62)" fill="#FBF3E4"/>
+          <rect x="584" y="46" width="132" height="32" rx="16" transform="rotate(-0.5 650 62)" fill="#FBF3E4"/>
+          <rect x="724" y="46" width="132" height="32" rx="16" transform="rotate(0.5 790 62)" fill="#FBF3E4"/>
+
+          <rect x="24" y="96" width="132" height="28" rx="8" transform="rotate(-1 90 110)" fill="#FFFFFF"/>
+          <rect x="24" y="134" width="132" height="28" rx="8" transform="rotate(1 90 148)" fill="#FFFFFF"/>
+          <rect x="164" y="96" width="132" height="28" rx="8" transform="rotate(1 230 110)" fill="#FFFFFF"/>
+          <rect x="164" y="134" width="132" height="28" rx="8" transform="rotate(-1 230 148)" fill="#FFFFFF"/>
+          <rect x="164" y="172" width="132" height="28" rx="8" transform="rotate(0.8 230 186)" fill="#FFFFFF"/>
+          <rect x="164" y="210" width="132" height="28" rx="8" transform="rotate(-0.8 230 224)" fill="#FFFFFF"/>
+          <rect x="304" y="96" width="132" height="28" rx="8" transform="rotate(-1 370 110)" fill="#FFFFFF"/>
+          <rect x="304" y="134" width="132" height="28" rx="8" transform="rotate(1 370 148)" fill="#FFFFFF"/>
+          <rect x="444" y="96" width="132" height="28" rx="8" transform="rotate(1 510 110)" fill="#FFFFFF"/>
+          <rect x="444" y="134" width="132" height="28" rx="8" transform="rotate(-1 510 148)" fill="#7DD3C6"/>
+          <rect x="584" y="96" width="132" height="28" rx="8" transform="rotate(-1 650 110)" fill="#7DD3C6"/>
+          <rect x="724" y="96" width="132" height="28" rx="8" transform="rotate(1 790 110)" fill="#7DD3C6"/>
+          <rect x="24" y="256" width="16" height="16" rx="4" fill="#7DD3C6"/>
+        </g>
+
+        <text class="s1bH" x="90" y="66" text-anchor="middle">Load</text>
+        <text class="s1bH" x="230" y="66" text-anchor="middle">Clean</text>
+        <text class="s1bH" x="370" y="66" text-anchor="middle">Join</text>
+        <text class="s1bH" x="510" y="66" text-anchor="middle">Aggregate</text>
+        <text class="s1bH" x="650" y="66" text-anchor="middle">Fit</text>
+        <text class="s1bH" x="790" y="66" text-anchor="middle">Serve</text>
+
+        <text class="s1bL" x="90" y="114" text-anchor="middle">Duplicated trips</text>
+        <text class="s1bL" x="90" y="152" text-anchor="middle">Type coercion</text>
+        <text class="s1bL" x="230" y="114" text-anchor="middle">Null coercion</text>
+        <text class="s1bL" x="230" y="152" text-anchor="middle">km / miles</text>
+        <text class="s1bL" x="230" y="190" text-anchor="middle">Timezone +3 h</text>
+        <text class="s1bL" x="230" y="228" text-anchor="middle">Off-by-one hour</text>
+        <text class="s1bL" x="370" y="114" text-anchor="middle">Join fan-out</text>
+        <text class="s1bL" x="370" y="152" text-anchor="middle">Stale reference</text>
+        <text class="s1bL" x="510" y="114" text-anchor="middle">Dropped station</text>
+        <text class="s1bL" x="510" y="152" text-anchor="middle">Label shift</text>
+        <text class="s1bL" x="650" y="114" text-anchor="middle">Target leakage</text>
+        <text class="s1bL" x="790" y="114" text-anchor="middle">Train/serve skew</text>
+
+        <text class="s1bS" x="48" y="268">model bugs: the data can be perfect and the forecast still wrong</text>
+        <text class="s1bN" x="24" y="294">Half the twelve enter before a single number is computed. Only three live in the model.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - most bugs that ship from an ML pipeline enter in the data stages, long before the model sees anything</figcaption>
+    </figure>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>The nine data bugs, one line each<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <table class="clean">
+          <tr><th>Bug class</th><th>What the code does wrong in Wrenfold's pipeline</th></tr>
+          <tr><td>Duplicated trips</td><td>Skips the de-duplication step, so the doubled source rows are all kept</td></tr>
+          <tr><td>Type coercion</td><td>Reads station ids as integers, so "030" becomes "30" and no longer matches the station table</td></tr>
+          <tr><td>Silent null coercion</td><td>Turns a missing distance into 0.0 km instead of leaving it missing</td></tr>
+          <tr><td>km / miles mismatch</td><td>Divides metres by 1609.344 instead of 1000</td></tr>
+          <tr><td>Timezone shift</td><td>Parses local Helsinki times as UTC and moves them three hours</td></tr>
+          <tr><td>Off-by-one hour</td><td>Buckets a trip at 07:20 into hour 8: ceiling where it needed floor</td></tr>
+          <tr><td>Join fan-out</td><td>Joins a capacity-history table without filtering to the current row, so two stations get every trip twice</td></tr>
+          <tr><td>Stale reference table</td><td>Joins an old station snapshot that lacks the stations opened since</td></tr>
+          <tr><td>Dropped station</td><td>The aggregation loop stops one station early</td></tr>
+        </table>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>The three model bugs, and why the metric will not save you<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p><strong>Target leakage</strong> fits the model on days it is later scored on. <strong>Label shift</strong> quietly changes what the target means: Wrenfold's forecast should count departures from a station, and the buggy aggregation counts arrivals. <strong>Train/serve skew</strong> computes a feature one way when training and another way when serving, here the hour of day in local time for training and in UTC for serving. Google's Rules of Machine Learning defines training-serving skew as "a difference between performance during training and performance during serving", and lists a different handling of data in the two pipelines as its first cause.</p>
+        <p>The tempting defence is the holdout metric: if the forecast gets worse, a threshold on its error will fail. On the bench, Wrenfold's clean forecast is off by 1.9113 trips per station-hour on 22-31 May. With target leakage it scores 1.7409. With label shift it scores 0.3277. Both bugs make the number <em>better</em>. A threshold that fails when error rises can never catch a bug that lowers it.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>Why these twelve and not others<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>The list is a working inventory for one pipeline, not a published taxonomy. Each class was kept because it meets three tests of its own: it produces valid-looking output, it recurs in real data work, and it can be planted as a one-line change in Wrenfold's code so the bench can show which test notices it. Your pipeline has its own list. Session 6 asks you to write it, and the habit transfers even where the classes do not.</p>
+        <p>Two classes worth adding for many teams are missing on purpose, because they need data this bench does not have: late-arriving rows (a batch that is complete today and not tomorrow) and feedback loops (the forecast changes where bikes are, which changes the trips the next forecast learns from). The Rules of Machine Learning names the second as the third cause of training-serving skew.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>A stale table, six months, two percent.</strong> Rule 10 of Martin Zinkevich's Rules of Machine Learning is "Watch for silent failures". Its example: Google Play once had a table that was stale for six months, and refreshing that table alone gave a 2% boost in install rate. Nothing crashed in those six months. The system adjusted around the stale data and performance decayed slowly enough that nobody saw a cliff.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-3">
+    <div class="section-kicker">
+      <span class="klabel">Part 3 · covers the test pyramid adapted for data</span>
+      <h2>A pyramid with a middle layer for data</h2>
+      <span class="tag concept">4 min live</span>
+    </div>
+    <p class="lede">The classic test pyramid has many cheap unit tests at the bottom and a few expensive end-to-end tests at the top. Data and ML code needs the same shape with one change: there are three different things that can be wrong, the code, the data that flows through it and the model fitted on that data, and each needs tests that read it directly.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 316" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A three-layer pyramid. Bottom, widest: unit tests on transforms, reading the code on a few fake rows, 1 cost unit each. Middle, filled teal: data checks on every batch, reading the real rows, 1 to 5 units each. Top, narrowest: behaviour and metric tests on the model, which need a fitted model, 8 to 20 units each. An arrow on the left points up from cheaper per run to dearer per run. Costs are the modelled units of the session 4 bench.">
+        <defs>
+          <filter id="s1cSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="37" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <marker id="s1cAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A1F12" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .s1cH { font: 800 12px Inter, sans-serif; fill: #2A1F12; }
+          .s1cS { font: 400 11px Inter, sans-serif; fill: #5E5243; }
+          .s1cK { font: 400 11px Inter, sans-serif; fill: #2A1F12; }
+          .s1cA { font: 700 11px Inter, sans-serif; fill: #804F00; }
+          .s1cN { font: 400 12px Inter, sans-serif; fill: #5E5243; }
+        </style>
+
+        <g filter="url(#s1cSk)" fill="none" stroke="#2A1F12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="330" y="40" width="220" height="62" rx="10" transform="rotate(-0.6 440 71)" fill="#FFFFFF"/>
+          <rect x="230" y="112" width="420" height="62" rx="10" transform="rotate(0.4 440 143)" fill="#7DD3C6"/>
+          <rect x="130" y="184" width="620" height="62" rx="10" transform="rotate(-0.3 440 215)" fill="#FBF3E4"/>
+          <path d="M112 240 L112 52" marker-end="url(#s1cAr)"/>
+        </g>
+
+        <text class="s1cA" x="100" y="60" text-anchor="end">dearer</text>
+        <text class="s1cA" x="100" y="75" text-anchor="end">per run</text>
+        <text class="s1cA" x="100" y="226" text-anchor="end">cheaper</text>
+        <text class="s1cA" x="100" y="241" text-anchor="end">per run</text>
+
+        <text class="s1cH" x="440" y="66" text-anchor="middle">Behaviour + metric tests</text>
+        <text class="s1cS" x="440" y="84" text-anchor="middle">read the model · 8 to 20 units</text>
+
+        <text class="s1cH" x="440" y="138" text-anchor="middle">Data checks on every batch</text>
+        <text class="s1cK" x="440" y="156" text-anchor="middle">read the real rows · 1 to 5 units</text>
+
+        <text class="s1cH" x="440" y="210" text-anchor="middle">Unit tests on transforms</text>
+        <text class="s1cS" x="440" y="228" text-anchor="middle">read the code, on a few fake rows · 1 unit each</text>
+
+        <text class="s1cS" x="30" y="274">Costs are the modelled units of the session 4 bench, not timings.</text>
+        <text class="s1cN" x="30" y="300">On Wrenfold's twelve bugs, 6 tests costing 10 units catch all of them. Session 4 shows which six.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - the middle layer is the one ordinary software pyramids do not have, and it is where most data bugs are visible</figcaption>
+    </figure>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Three layers, three things they read<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p><strong>Unit tests read the code.</strong> They call one transform on a handful of rows you wrote by hand and check the answer. They are fast, they run on every commit, and they catch a bug in the function they call, if a fixture exercises that path. Session 2.</p>
+        <p><strong>Data checks read the data.</strong> They run on every real batch: are the columns and types right, do the counts reconcile from raw to clean, is the trip key unique, is every distance in range, does every station exist, has the distribution moved. They catch bugs in code that no unit test covers, and bugs that are not in your code at all, such as a source file with every row twice. Session 3.</p>
+        <p><strong>Behaviour and metric tests read the model.</strong> They need a fitted model, so they are the dearest to run. They catch what only shows up in predictions: a forecast that is higher at 04:00 than at 08:00, a forecast that does not fall when a station closes. Session 5.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>Cost per run is not cost per bug<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>A pyramid tells you how many of each kind you can afford to run often. It does not tell you which ones are worth having. A one-unit test that catches three bugs is worth more than three one-unit tests that each catch the same one. Session 4 turns that into a measurement: for each bug, which tests fail; for each test, what it costs; and the cheapest set that leaves no bug shipping.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>Thirty-six teams and twenty-eight tests.</strong> Breck and colleagues at Google published "The ML Test Score" in 2017: 28 tests and monitoring needs for production ML, in four sections, features and data, model development, infrastructure and monitoring. In a survey of several dozen teams at Google, none of the 28 was implemented by more than 80% of teams. These were not careless teams; the paper's point is that ML-specific tests are non-obvious even where testing is a strong habit. Session 5 scores Wrenfold on it.</p>
+    </div>
+  </section>
+
+  <section class="section" id="demo-1">
+    <div class="section-kicker">
+      <span class="klabel">Build-along</span>
+      <h2>Break a Wrenfold transform</h2>
+      <span class="tag demo">★ 22 min · everyone builds</span>
+    </div>
+    <p class="lede">The widget below runs Wrenfold's real pipeline on the real trips in your browser (Constructed Wrenfold example). Pick a bug, and it re-runs every stage with that one code path changed, then shows what moved and what Wrenfold's only existing test says about it. Nothing to install.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Share of departures by hour of day, clean pipeline against the timezone bug. The clean curve peaks at 16:00 with 10.3 percent of departures. With local times parsed as UTC the whole curve slides three hours later and peaks at 19:00 with 10.3 percent. The smoke test reports green for both.">
+        <defs>
+          <filter id="s1dSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="41" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <style>
+          .s1dH { font: 800 12px Inter, sans-serif; fill: #2A1F12; }
+          .s1dL { font: 600 11px Inter, sans-serif; fill: #2A1F12; }
+          .s1dS { font: 400 11px Inter, sans-serif; fill: #5E5243; }
+          .s1dR { font: 800 11px Inter, sans-serif; fill: #991B1B; }
+          .s1dA { font: 700 11px Inter, sans-serif; fill: #804F00; }
+          .s1dN { font: 400 12px Inter, sans-serif; fill: #5E5243; }
+        </style>
+
+        <g filter="url(#s1dSk)" fill="none" stroke="#2A1F12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M70 232 L790 232"/>
+          <polyline points="80,211.2 110,218.4 140,219.8 170,222.8 200,225.7 230,224.2 260,209.7 290,193.8 320,161.8 350,179.2 380,185.1 410,172.0 440,148.8 470,144.4 500,134.3 530,115.4 560,80.6 590,87.9 620,105.3 650,124.2 680,141.6 710,170.6 740,190.8 770,203.9" stroke="#804F00" stroke-width="2.6"/>
+          <polyline points="80,170.6 110,192.3 140,205.3 170,211.2 200,218.4 230,219.8 260,222.8 290,225.7 320,224.2 350,209.7 380,193.8 410,160.4 440,179.2 470,185.1 500,172.0 530,148.8 560,143.0 590,134.3 620,114.0 650,80.6 680,87.9 710,105.3 740,122.7 770,140.1" stroke="#991B1B" stroke-dasharray="6 5"/>
+          <rect x="90" y="36" width="250" height="44" rx="10" transform="rotate(-0.6 215 58)" fill="#7DD3C6"/>
+        </g>
+
+        <text class="s1dH" x="104" y="56">Smoke test, both runs: green</text>
+        <text class="s1dL" x="104" y="72">13,465 rows written each time</text>
+
+        <text class="s1dA" x="548" y="66" text-anchor="end">clean: peak 16:00, 10.3%</text>
+        <text class="s1dR" x="662" y="66">timezone bug: peak 19:00</text>
+
+        <text class="s1dS" x="80" y="250" text-anchor="middle">00</text>
+        <text class="s1dS" x="260" y="250" text-anchor="middle">06</text>
+        <text class="s1dS" x="440" y="250" text-anchor="middle">12</text>
+        <text class="s1dS" x="620" y="250" text-anchor="middle">18</text>
+        <text class="s1dS" x="770" y="250" text-anchor="middle">23</text>
+        <text class="s1dS" x="300" y="268">hour of day · share of all departures in May</text>
+        <text class="s1dN" x="30" y="290">Same rows, same count, every value three hours late. The forecast learns the wrong rush hour.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - the timezone bug moves every trip three hours and leaves the row count, the schema and the smoke test untouched</figcaption>
+    </figure>
+
+    <div class="tdm-bench" data-mode="break"></div>
+
+    <div class="steps">
+      <div class="step">
+        <p><strong>Read Wrenfold's existing test first.</strong> This is the whole suite Wrenfold runs today (Constructed Wrenfold example). Say out loud which of the twelve bugs it could ever fail on.</p>
+        <div class="prompt-box good"><span class="label">★ Step 1 · Wrenfold's test suite, as found</span>def test_pipeline_runs(tmp_path):
+    out = run_pipeline(month="2021-05", out_dir=tmp_path)
+    assert out.exit_code == 0
+    assert len(out.trips) &gt; 0</div>
+      </div>
+      <div class="step">
+        <p><strong>Pick "Timezone shift" in the widget.</strong> Read the three lines that matter: the smoke test, the rows written, the forecast error. The rows written stay at 13,465. The forecast error goes from 1.9113 to 1.9098, essentially unchanged, because the model learned the shifted hours and is scored on shifted hours too. The hour profile distance jumps from 0.0415 to 0.2795. Only a test that reads the hours would notice.</p>
+        <div class="prompt-box good"><span class="label">★ Step 2 · what to write down</span>Bug: timezone shift              Stage: clean (parse timestamps)
+Smoke test: green                   Rows: 13,465 -&gt; 13,465
+Forecast error: 1.9113 -&gt; 1.9098     Hour profile: 0.0415 -&gt; 0.2795
+A test that would fail: one that checks a known timestamp lands
+in the right hour, or one that compares the hour profile with last
+week's.</div>
+      </div>
+      <div class="step">
+        <p><strong>Now pick "Duplicated trips", then "Target leakage".</strong> Duplicated trips doubles the rows to 26,930 and the error to 3.8226; that one a metric threshold would notice. Target leakage leaves the rows alone and improves the error to 1.7409. Write both down in the same shape as step 2.</p>
+      </div>
+      <div class="step">
+        <p><strong>Work through the other nine.</strong> For each, note what moved and your first guess at the cheapest test that would fail. Do not look up session 4 yet: the point is to see how good your instincts are before the bench measures them.</p>
+        <div class="prompt-box good"><span class="label">★ Step 4 · Wrenfold's test plan, page one: the bug inventory</span>WRENFOLD TEST PLAN v0 (constructed)          your guess at the first test that fails
+Load       duplicated trips                    ________________________________
+Load       type coercion of station ids        ________________________________
+Clean      silent null coercion (0.0 km)       ________________________________
+Clean      km / miles mismatch                 ________________________________
+Clean      timezone shift (+3 h)               ________________________________
+Clean      off-by-one hour bucket              ________________________________
+Join       join fan-out (history table)        ________________________________
+Join       stale reference table               ________________________________
+Aggregate  dropped station                     ________________________________
+Aggregate  label shift (arrivals)              ________________________________
+Fit        target leakage                      ________________________________
+Serve      train/serve skew                    ________________________________</div>
+      </div>
+      <div class="step">
+        <p><strong>Mark the ones where the forecast error got better or stayed put.</strong> Those are the bugs a holdout threshold can never catch. Keep the list: session 2 writes the first unit tests against it and session 4 scores every guess on it.</p>
+      </div>
+    </div>
+
+    <div class="callout tip">
+      <p><strong>Ask the question before you write the test.</strong> "What would this test fail on?" is cheaper to answer before the test exists than after. A test with no bug it would fail on is a cost with no catch, however green it looks.</p>
+    </div>
+  </section>
+
+  <section class="section" id="exercise">
+    <div class="section-kicker">
+      <span class="klabel">Homework</span>
+      <h2>Before session 2</h2>
+      <span class="tag exercise">30 min</span>
+    </div>
+    <ol>
+      <li><strong>Finish the twelve rows of Wrenfold's bug inventory</strong> from the build-along, with your guess at the first test that fails for each.</li>
+      <li><strong>Write the bug inventory for one pipeline you own.</strong> Five rows is enough: the stage, the bug class, the evidence you would see if it happened.</li>
+      <li><strong>Read your own suite as Wrenfold's was read.</strong> For every test in one data job, write which bug it would fail on. Mark the ones where the answer is "none".</li>
+      <li><strong>Find one quiet number.</strong> A metric in a report you trust where a doubled row, a shifted hour or a unit slip would not make anything crash. Bring it to session 3.</li>
+    </ol>
+  </section>
+
+  <section class="section" id="quiz">
+    <div class="section-kicker">
+      <span class="klabel">Check yourself</span>
+      <h2>Three questions</h2>
+    </div>
+    <p>Clear all three and session 1 gets stamped in your passport.</p>
+
+    <div class="quiz-q" data-answer="1">
+      <p class="qtext">1 · Wrenfold's only test asserts the job exits with code 0 and writes more than zero rows. With the timezone bug planted, the rows written stay at 13,465. Why does that test stay green?</p>
+      <button class="qopt" type="button">A · The test is flaky and should be re-run</button>
+      <button class="qopt" type="button">B · It reads the exit code and a row count, and the bug changes only the values inside the rows: every trip is still a valid row, three hours late</button>
+      <button class="qopt" type="button">C · The bench cannot plant a timezone bug for real</button>
+      <button class="qopt" type="button">D · Timezone bugs always crash the parser, so a green run proves there was none</button>
+      <p class="qwhy">The check and the bug never meet. A test catches a bug only if it reads the thing the bug changed; a smoke test reads that the job ran.</p>
+    </div>
+
+    <div class="quiz-q" data-answer="3">
+      <p class="qtext">2 · On the bench, target leakage scores a forecast error of 1.7409 against the clean 1.9113. What does that tell you about a holdout threshold such as "error must stay at or under 2.2"?</p>
+      <button class="qopt" type="button">A · The threshold is set too loose and should be 1.8</button>
+      <button class="qopt" type="button">B · Leakage is harmless because the forecast got better</button>
+      <button class="qopt" type="button">C · The holdout days were chosen badly</button>
+      <button class="qopt" type="button">D · It can never catch leakage: the bug lowers the error, and the threshold only fails when error rises, so a different test has to check that no scored day was used in fitting</button>
+      <p class="qwhy">Leakage flatters the metric by letting the model see the answers. The fix is a test of the split itself, which costs almost nothing; session 3 writes it.</p>
+    </div>
+
+    <div class="quiz-q" data-answer="0">
+      <p class="qtext">3 · In the pyramid redrawn for data, what does the middle layer read that the bottom layer does not?</p>
+      <button class="qopt" type="button">A · The real rows of every batch, so it can see bugs no unit test exercises and bugs that are not in your code at all, such as a source file with every row twice</button>
+      <button class="qopt" type="button">B · The model's predictions</button>
+      <button class="qopt" type="button">C · The code of each transform, line by line</button>
+      <button class="qopt" type="button">D · Nothing; it is the same as unit tests with bigger fixtures</button>
+      <p class="qwhy">Unit tests read code on fake rows; data checks read the real data; behaviour tests read the model. The HSL file's doubled rows are a data fact no unit test of your code can see.</p>
+    </div>
+
+    <p class="quiz-score"></p>
+  </section>
+
+  <section class="section" id="official">
+    <div class="section-kicker">
+      <span class="klabel">Sources covered</span>
+      <h2>What this session teaches, and where it came from</h2>
+    </div>
+    <div class="covered">
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">HSL city bike trips, May 2021</span><span class="note">Read at source and counted: 814,676 data lines, 407,338 distinct rows, CC BY 4.0, owned by City Bike Finland and published by HSL</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">Rules of Machine Learning</span><span class="note">Zinkevich, Google for Developers: training-serving skew definition and causes; Rule 10 "Watch for silent failures" and the Play stale-table example; read at source</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">The ML Test Score</span><span class="note">Breck, Cai, Nielsen, Salib and Sculley, IEEE Big Data 2017: 28 tests in four sections; none implemented by more than 80% of surveyed teams; read at source</span></div>
+      <div class="covered-row"><span class="status pill light">◐</span><span class="name">The twelve bug classes</span><span class="note">A working inventory for one pipeline, not a published taxonomy; every class is a real code path on the session 4 bench</span></div>
+      <div class="covered-row"><span class="status pill light">◐</span><span class="name">Green suites and what a test is for</span><span class="note">Recap only; taught in Learn AI QA sessions 1 and 2</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">Wrenfold</span><span class="note">Constructed example; its pipeline is the bench engine and every number above is one the widget prints</span></div>
+    </div>
+    <p class="mono" style="margin-top:14px">Every fact on this page, and its verification tier, is recorded in the course's source map.</p>
+  </section>
+
+  <section class="cheat" id="cheatsheet">
+    <h3>Session 1 cheat sheet <span>· pin this</span></h3>
+    <div class="grid-2">
+      <div class="cheat-item"><b>The one question</b><span>For each bug the pipeline could ship: which test would fail, and what does it cost to run?</span></div>
+      <div class="cheat-item"><b>Quiet beats loud</b><span>Data bugs change values, not shape. A check on exit code and row count cannot see them.</span></div>
+      <div class="cheat-item"><b>Name the class</b><span>Nulls, fan-out, units, timezone, duplicates, dropped keys, type coercion, stale tables, leakage, label shift, skew.</span></div>
+      <div class="cheat-item"><b>Where it enters</b><span>Load, clean, join, aggregate, fit, serve. Most enter before the model sees a row.</span></div>
+      <div class="cheat-item"><b>Metrics can flatter</b><span>Leakage and label shift lower the error. A threshold that fails on rising error cannot catch them.</span></div>
+      <div class="cheat-item"><b>Three layers</b><span>Unit tests read code, data checks read data, behaviour tests read the model.</span></div>
+    </div>
+  </section>
+
+  <div class="callout next">
+    <span class="nx-pill">Next session</span>
+    <p>Four of the twelve bugs live inside two small functions: the distance cleaner and the hour bucketer. Session 2 writes the unit tests that would fail on them, with pytest, fixtures, parametrize and a handful of fake trips, and shows why a pure function is cheap to test and a function that reads a file is not.</p>
+  </div>
+
+  <footer class="pagefoot">
+    <span>Session 1 of 6 · learn-testing-data-ml-code-with-phoebe · by Phoebe Fu &nbsp;·&nbsp; 📚 <a href="https://phoebefu6.github.io/learn-with-phoebe/">Learn with Phoebe ↗</a></span>
+    <span><a href="../index.html">← Course home</a> &nbsp;·&nbsp; <a href="02-unit-tests-for-transforms.html">Next: Unit tests for transforms →</a></span>
+  </footer>
+
+</main>
+
+<script src="../assets/tdm-sample.js?v=1"></script>
+<script src="../assets/tdm-live.js?v=1"></script>
+<script src="../assets/app.js?v=1"></script>
+</body>
+</html>

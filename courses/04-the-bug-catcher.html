@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- social:start -->
+<meta name="description" content="Session 4 of 6. The bench: a real pipeline on real Helsinki bike trips, twelve bug injectors and seventeen tests running in your browser. Read the catch matrix, tighten the thresholds and count the false alarms, then find the cheapest set of tests that catches every bug.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Learn with Phoebe">
+<meta property="og:title" content="The bug catcher - learn testing data ml code with phoebe">
+<meta property="og:description" content="Session 4 of 6. Twelve bugs, seventeen tests, one catch matrix, computed for real in your browser. Six tests costing 10 units catch all twelve.">
+<meta property="og:url" content="https://phoebefu6.github.io/learn-testing-data-ml-code-with-phoebe/courses/04-the-bug-catcher.html">
+<meta property="og:image" content="https://phoebefu6.github.io/learn-testing-data-ml-code-with-phoebe/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="The bug catcher - learn testing data ml code with phoebe">
+<meta name="twitter:description" content="Session 4 of 6. A catch matrix computed in your browser, a threshold trap, and the cheapest full catch.">
+<meta name="twitter:image" content="https://phoebefu6.github.io/learn-testing-data-ml-code-with-phoebe/assets/og-cover.png">
+<!-- social:end -->
+<title>Session 4 · The bug catcher - learn testing data ml code with phoebe</title>
+<link rel="stylesheet" href="../assets/style.css?v=1">
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="wrap">
+    <span class="crumb"><a href="../index.html">learn-testing-data-ml-code-with-phoebe</a> / Session 4 of 6</span>
+    <button class="btn" id="toggle-all" type="button">Expand all</button>
+    <button class="btn primary" id="zoom-toggle" type="button">Projector zoom: off</button>
+  </div>
+</div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="eyebrow">Learn Testing Data &amp; ML Code with Phoebe · Session 4 of 6</div>
+    <h1>The bench: bug <span class="accent">catcher</span></h1>
+    <p class="sub">Three sessions of guesses meet one measurement. Wrenfold's pipeline runs in your browser on 13,810 real Helsinki bike trips, clean and then with each of twelve bugs planted, and seventeen tests really run against every output. You read the catch matrix, find out which of your guesses held, tighten the thresholds to see what a nervous team pays for, and let the bench search for the cheapest set of tests that leaves no bug shipping.</p>
+    <div class="chip-row">
+      <span class="chip level">🟠 Bench night</span>
+      <span class="chip audience">Data, analytics and ML engineers who write pandas</span>
+      <span class="chip audience">Real rows, real tests, in the page</span>
+      <span class="chip time">45 min</span>
+    </div>
+    <div class="agenda">
+      <span class="a1" style="flex:1">0-3 · Welcome</span>
+      <span class="a2" style="flex:4">3-18 · Matrix, thresholds, the cheapest catch</span>
+      <span class="a3" style="flex:5">18-40 · Build-along: run the ladder</span>
+      <span class="a4" style="flex:1">40-45 · Q&amp;A</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="section" id="intro">
+    <div class="section-kicker">
+      <span class="klabel">Part 0</span>
+      <h2>Where we start</h2>
+    </div>
+    <p class="lede">By now Wrenfold's test plan (Constructed Wrenfold example) has a bug inventory from session 1, four unit tests from session 2 and a data check suite from session 3. Tonight every one of those tests runs against every one of the twelve bugs, for real, and the answer to "which test would fail?" stops being a guess. The bench also counts what each test costs and whether it fails on a pipeline with no bug at all.</p>
+
+    <div class="legend">
+      <span class="pill">🎫 Clear all three quiz questions to stamp your passport</span>
+      <span class="pill">Live = presented in the 45 minutes</span>
+      <span class="pill">Self-study = the full depth, after class</span>
+      <span class="pill">★ Build-along = do it yourself, in the page</span>
+    </div>
+
+    <div class="callout win">
+      <p><strong>★ What you walk out with tonight.</strong> A measured catch matrix for Wrenfold's twelve bugs, a scored copy of your session 1 guesses, and the cheapest set of tests that catches every bug with no false alarm: six tests, 10 cost units, against 79 units for running all seventeen.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-1">
+    <div class="section-kicker">
+      <span class="klabel">Part 1 · covers the catch matrix</span>
+      <h2>Reading a catch matrix</h2>
+      <span class="tag concept">5 min live</span>
+    </div>
+    <p class="lede">A catch matrix has one row per bug and one column per test. A cell reads "caught" when that test fails on the output of the pipeline with that bug planted. The verdict for a bug is simple: it ships only if every test in its row passes. The figure is four rows and five columns cut from the full seventeen-column matrix the bench prints below.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 290" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A slice of the measured catch matrix. Duplicated trips is caught by the row reconciliation and the holdout threshold. Timezone shift is caught by the hour-bucketing unit test. Target leakage is caught only by the split integrity check. Stale reference table is caught only by the referential check. Every row has at least one caught cell, so in this slice no bug ships; remove the one test in the leakage or stale rows and that bug ships.">
+        <defs>
+          <filter id="s4aSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="13" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <style>
+          .s4aH { font: 800 12px Inter, sans-serif; fill: #2A1F12; }
+          .s4aC { font: 700 11px ui-monospace, Menlo, monospace; fill: #5A3700; }
+          .s4aL { font: 600 12px Inter, sans-serif; fill: #2A1F12; }
+          .s4aK { font: 800 11px Inter, sans-serif; fill: #2A1F12; }
+          .s4aS { font: 400 11px Inter, sans-serif; fill: #5E5243; }
+          .s4aN { font: 400 12px Inter, sans-serif; fill: #5E5243; }
+        </style>
+
+        <text class="s4aH" x="30" y="30">MEASURED, NOT GUESSED: A SLICE OF THE MATRIX</text>
+
+        <text class="s4aC" x="290" y="66" text-anchor="middle">u_bucket</text>
+        <text class="s4aC" x="400" y="66" text-anchor="middle">d_reconcile</text>
+        <text class="s4aC" x="510" y="66" text-anchor="middle">d_split</text>
+        <text class="s4aC" x="620" y="66" text-anchor="middle">d_referential</text>
+        <text class="s4aC" x="730" y="66" text-anchor="middle">m_holdout</text>
+        <text class="s4aH" x="827" y="66" text-anchor="middle">verdict</text>
+
+        <g filter="url(#s4aSk)" fill="none" stroke="#2A1F12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="240" y="80" width="100" height="34" rx="6" fill="#FFFFFF"/>
+          <rect x="350" y="80" width="100" height="34" rx="6" fill="#7DD3C6"/>
+          <rect x="460" y="80" width="100" height="34" rx="6" fill="#FFFFFF"/>
+          <rect x="570" y="80" width="100" height="34" rx="6" fill="#FFFFFF"/>
+          <rect x="680" y="80" width="100" height="34" rx="6" fill="#7DD3C6"/>
+          <rect x="240" y="124" width="100" height="34" rx="6" fill="#7DD3C6"/>
+          <rect x="350" y="124" width="100" height="34" rx="6" fill="#FFFFFF"/>
+          <rect x="460" y="124" width="100" height="34" rx="6" fill="#FFFFFF"/>
+          <rect x="570" y="124" width="100" height="34" rx="6" fill="#FFFFFF"/>
+          <rect x="680" y="124" width="100" height="34" rx="6" fill="#FFFFFF"/>
+          <rect x="240" y="168" width="100" height="34" rx="6" fill="#FFFFFF"/>
+          <rect x="350" y="168" width="100" height="34" rx="6" fill="#FFFFFF"/>
+          <rect x="460" y="168" width="100" height="34" rx="6" fill="#7DD3C6"/>
+          <rect x="570" y="168" width="100" height="34" rx="6" fill="#FFFFFF"/>
+          <rect x="680" y="168" width="100" height="34" rx="6" fill="#FFFFFF"/>
+          <rect x="240" y="212" width="100" height="34" rx="6" fill="#FFFFFF"/>
+          <rect x="350" y="212" width="100" height="34" rx="6" fill="#FFFFFF"/>
+          <rect x="460" y="212" width="100" height="34" rx="6" fill="#FFFFFF"/>
+          <rect x="570" y="212" width="100" height="34" rx="6" fill="#7DD3C6"/>
+          <rect x="680" y="212" width="100" height="34" rx="6" fill="#FFFFFF"/>
+          <rect x="796" y="80" width="62" height="166" rx="8" fill="#FBF3E4"/>
+        </g>
+
+        <text class="s4aL" x="226" y="102" text-anchor="end">Duplicated trips</text>
+        <text class="s4aL" x="226" y="146" text-anchor="end">Timezone shift</text>
+        <text class="s4aL" x="226" y="190" text-anchor="end">Target leakage</text>
+        <text class="s4aL" x="226" y="234" text-anchor="end">Stale reference table</text>
+
+        <text class="s4aK" x="400" y="102" text-anchor="middle">caught</text>
+        <text class="s4aK" x="730" y="102" text-anchor="middle">caught</text>
+        <text class="s4aK" x="290" y="146" text-anchor="middle">caught</text>
+        <text class="s4aK" x="510" y="190" text-anchor="middle">caught</text>
+        <text class="s4aK" x="620" y="234" text-anchor="middle">caught</text>
+        <text class="s4aS" x="290" y="102" text-anchor="middle">pass</text>
+        <text class="s4aS" x="510" y="102" text-anchor="middle">pass</text>
+        <text class="s4aS" x="620" y="102" text-anchor="middle">pass</text>
+        <text class="s4aS" x="400" y="146" text-anchor="middle">pass</text>
+        <text class="s4aS" x="510" y="146" text-anchor="middle">pass</text>
+        <text class="s4aS" x="620" y="146" text-anchor="middle">pass</text>
+        <text class="s4aS" x="730" y="146" text-anchor="middle">pass</text>
+        <text class="s4aS" x="290" y="190" text-anchor="middle">pass</text>
+        <text class="s4aS" x="400" y="190" text-anchor="middle">pass</text>
+        <text class="s4aS" x="620" y="190" text-anchor="middle">pass</text>
+        <text class="s4aS" x="730" y="190" text-anchor="middle">pass</text>
+        <text class="s4aS" x="290" y="234" text-anchor="middle">pass</text>
+        <text class="s4aS" x="400" y="234" text-anchor="middle">pass</text>
+        <text class="s4aS" x="510" y="234" text-anchor="middle">pass</text>
+        <text class="s4aS" x="730" y="234" text-anchor="middle">pass</text>
+
+        <text class="s4aK" x="827" y="102" text-anchor="middle">caught</text>
+        <text class="s4aK" x="827" y="146" text-anchor="middle">caught</text>
+        <text class="s4aK" x="827" y="190" text-anchor="middle">caught</text>
+        <text class="s4aK" x="827" y="234" text-anchor="middle">caught</text>
+
+        <text class="s4aN" x="30" y="276">Leakage and the stale table are caught by one test of all 17: delete that test and the bug ships.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - a bug ships only when its whole row passes, so the rows with a single caught cell are where a suite is thinnest</figcaption>
+    </figure>
+
+    <details class="card" open>
+      <summary><span class="mode live">Live</span>What "caught" means here, exactly<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>For each bug the bench re-runs the whole pipeline with that one code path changed: load, clean, join, aggregate, fit, serve. Then it runs each enabled test against that run's output, exactly as it runs it against the clean pipeline. A unit test calls the buggy function on its own fake rows. A data check reads the buggy run's real rows. A behaviour test asks the buggy run's model for predictions, and two of them re-run the pipeline again on a changed input: invariance loads the file a second time, directional removes every trip from station 030.</p>
+        <p>"Caught" is a test failing. Nothing is looked up from a table: if you change a threshold, the test reruns and the cell can change. That is also why the clean row matters. A test that fails on the clean pipeline is not catching anything; it is a false alarm, and the bench counts those separately.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>How the bench is built, and what is constructed<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p><strong>Real:</strong> the trips. HSL publishes Helsinki and Espoo city bike origin-destination data under CC BY 4.0; the data is owned by City Bike Finland. The bench ships every distinct trip departing the five busiest stations of May 2021 (ids 030, 126, 113, 041 and 021), a seeded 50% sample: 13,810 trips. The source file carries every row twice, and the loader keeps that, because it is a fact about the file. The station table is HSL's own, also CC BY 4.0.</p>
+        <p><strong>Constructed:</strong> Wrenfold and its forecast; a capacity-history table with older rows for stations 126 and 113, so the join fan-out has something to fan out on; an old station snapshot lacking every station numbered 300 and up, standing in for a table nobody refreshed. <strong>Modelled:</strong> the cost units. Everything else, the pipeline, the twelve bugs and the seventeen tests, runs as code. A Python twin of the engine produces the same numbers to the last decimal, and a planted 0.1% fault in one number makes the comparison fail, so the check is known to bite.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>Planting bugs is not mutation testing (and where to learn that)<span class="mini">1 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Planting a known bug and asking which test fails is the same idea mutation testing automates: generate many small changes to the code and score a suite by how many it kills. That technique, its tools and its scoring are taught in <a href="https://phoebefu6.github.io/learn-ai-qa-with-phoebe/courses/04-mutation-testing.html">Learn AI QA, session 4</a>. The difference here is the choice of bugs: twelve hand-picked data and ML bug classes rather than mechanical mutations, because the question is which kind of test sees which kind of data bug.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>Three stations nobody listed.</strong> HSL's station table has 457 rows. The May 2021 trips mention 432 station ids, and three of them, 754, 997 and 999, are not in the table at all. On a real public dataset, a referential check has something to say on day one: the rule that rejects a trip whose return station is unknown rejects one trip in Wrenfold's sample, which is why the bench allows up to 0.2% and no more.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-2">
+    <div class="section-kicker">
+      <span class="klabel">Part 2 · covers thresholds, false alarms and the two anti-levers</span>
+      <h2>Tighter is not safer</h2>
+      <span class="tag concept">5 min live</span>
+    </div>
+    <p class="lede">Two of the seventeen tests compare this month with a profile stored from a known-good first week: the median trip length and the share of departures in each hour of the day. A distribution check needs a threshold, and the threshold is a choice. Set it loose and real drift slips under it. Set it tight and normal variation, May is not its own first week, trips it on a clean pipeline.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 270" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The hour-profile check on one axis from 0 to 0.30. The clean month sits at 0.0415, the off-by-one bug at 0.1062 and the timezone bug at 0.2795. The normal threshold at 0.08 passes the clean month and flags both bugs. The tight threshold at 0.02 sits left of the clean month, so it fails every run, clean or buggy.">
+        <defs>
+          <filter id="s4bSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="29" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+        </defs>
+        <style>
+          .s4bH { font: 800 12px Inter, sans-serif; fill: #2A1F12; }
+          .s4bL { font: 600 11px Inter, sans-serif; fill: #2A1F12; }
+          .s4bS { font: 400 11px Inter, sans-serif; fill: #5E5243; }
+          .s4bR { font: 800 11px Inter, sans-serif; fill: #991B1B; }
+          .s4bA { font: 700 11px Inter, sans-serif; fill: #804F00; }
+          .s4bN { font: 400 12px Inter, sans-serif; fill: #5E5243; }
+        </style>
+
+        <text class="s4bH" x="30" y="30">HOUR-PROFILE DISTANCE FROM THE STORED FIRST WEEK</text>
+
+        <g filter="url(#s4bSk)" fill="none" stroke="#2A1F12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="100" y="140" width="700" height="20" rx="10" fill="#FBF3E4"/>
+          <path d="M287 100 L287 168" stroke="#5A3700" stroke-dasharray="6 5"/>
+          <path d="M147 100 L147 168" stroke="#991B1B" stroke-dasharray="6 5"/>
+          <circle cx="197" cy="150" r="9" fill="#FFFFFF"/>
+          <circle cx="348" cy="150" r="9" fill="#7DD3C6"/>
+          <circle cx="752" cy="150" r="9" fill="#7DD3C6"/>
+        </g>
+
+        <text class="s4bR" x="147" y="92" text-anchor="middle">tight 0.02</text>
+        <text class="s4bA" x="287" y="92" text-anchor="middle">normal 0.08</text>
+
+        <text class="s4bL" x="197" y="188" text-anchor="middle">clean 0.0415</text>
+        <text class="s4bL" x="348" y="188" text-anchor="middle">off-by-one 0.1062</text>
+        <text class="s4bL" x="752" y="188" text-anchor="middle">timezone 0.2795</text>
+
+        <text class="s4bS" x="100" y="212" text-anchor="middle">0</text>
+        <text class="s4bS" x="333" y="212" text-anchor="middle">0.10</text>
+        <text class="s4bS" x="567" y="212" text-anchor="middle">0.20</text>
+        <text class="s4bS" x="800" y="212" text-anchor="middle">0.30</text>
+
+        <text class="s4bN" x="30" y="252">Under the tight bar every run fails, clean included: a check that always fails catches nothing.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - the normal bar sits between the clean month and the bugs; the tight bar sits below the clean month, so it fires on everything</figcaption>
+    </figure>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Anti-lever one: "Tighten thresholds"<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>The button moves three bars at once: the median trip length check from 15% to 1%, the hour-profile check from 0.08 to 0.02 and the holdout error bar from 2.2 to 1.9. With all seventeen tests on, the bench still catches 12 of 12 bugs, and now reports 3 false alarms on the clean run. The clean month's median trip is 2.0095 km against the stored week's 1.982, and its forecast error is 1.9113, a little over 1.9. Nothing is wrong with the clean pipeline. The month is just not its first week.</p>
+        <p>A false alarm costs more than the minute it takes to dismiss. Every one teaches the on-call person that this check is noise, and the next real failure of that check gets dismissed with the same click. Session 6 comes back to this as flaky data tests.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Anti-lever two: "Only unit tests"<span class="mini">2 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>Turn on the four unit tests and nothing else. They cost 4 units, catch 7 bugs, and let 5 ship: join fan-out, duplicated trips, target leakage, type coercion and the stale reference table. Look at where those five live. Two are in the data itself (the source file's doubled rows, a station table nobody refreshed), one is in a join to a table the fixtures never contain, one is in how the loader reads a column, and one is in which days the model is fitted on. A unit test exercises the function you call on the rows you wrote. None of those five is in a function a fixture calls.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>When a column quietly empties.</strong> The Rules of Machine Learning gives, under "Watch for silent failures", the example of a feature column populated in 90% of examples that suddenly drops to 60%. No row is invalid and no type is wrong. Only a check that compares this batch's distribution with a stored one sees it, and only if its threshold sits between normal variation and that drop.</p>
+    </div>
+  </section>
+
+  <section class="section" id="part-3">
+    <div class="section-kicker">
+      <span class="klabel">Part 3 · covers the ladder and the cheapest full catch</span>
+      <h2>The cheapest set that catches everything</h2>
+      <span class="tag concept">5 min live</span>
+    </div>
+    <p class="lede">The ladder adds one kind of test at a time and prints three numbers per rung: bugs caught, false alarms, cost per run. Then the bench searches every subset of the seventeen tests, all 131,071 of them, for the cheapest one that catches all twelve bugs with no false alarm.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 340" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Bugs caught out of 12 and cost per run for each rung, normal thresholds. As found, the smoke test only: 0 caught, 1 unit. Plus unit tests: 7 caught, 5 units. Plus schema: 8 caught, 7 units. Plus data checks: 12 caught, 29 units. Plus behaviour tests, all seventeen: 12 caught, 79 units. Cheapest full catch, six tests: 12 caught, 10 units. No rung has a false alarm.">
+        <defs>
+          <filter id="s4cSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="31" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="s4cHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#804F00" stroke-width="1" opacity=".5"/></pattern>
+        </defs>
+        <style>
+          .s4cH { font: 800 12px Inter, sans-serif; fill: #2A1F12; }
+          .s4cL { font: 600 12px Inter, sans-serif; fill: #2A1F12; }
+          .s4cK { font: 800 11px Inter, sans-serif; fill: #2A1F12; }
+          .s4cS { font: 400 11px Inter, sans-serif; fill: #5E5243; }
+          .s4cA { font: 700 11px Inter, sans-serif; fill: #804F00; }
+          .s4cN { font: 400 12px Inter, sans-serif; fill: #5E5243; }
+        </style>
+
+        <text class="s4cA" x="260" y="38">BUGS CAUGHT OF 12</text>
+        <text class="s4cA" x="660" y="38">COST PER RUN (MODELLED UNITS)</text>
+
+        <g filter="url(#s4cSk)" fill="none" stroke="#2A1F12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M260 52 L260 304"/>
+          <rect x="260" y="104" width="210" height="30" rx="6" fill="url(#s4cHc)"/>
+          <rect x="260" y="148" width="240" height="30" rx="6" fill="url(#s4cHc)"/>
+          <rect x="260" y="192" width="360" height="30" rx="6" fill="#FBF3E4"/>
+          <rect x="260" y="236" width="360" height="30" rx="6" fill="#FBF3E4"/>
+          <rect x="260" y="280" width="360" height="30" rx="6" fill="#7DD3C6"/>
+        </g>
+
+        <text class="s4cL" x="244" y="80" text-anchor="end">As found (smoke only)</text>
+        <text class="s4cL" x="244" y="124" text-anchor="end">+ unit tests</text>
+        <text class="s4cL" x="244" y="168" text-anchor="end">+ schema</text>
+        <text class="s4cL" x="244" y="212" text-anchor="end">+ data checks</text>
+        <text class="s4cL" x="244" y="256" text-anchor="end">+ behaviour (all 17)</text>
+        <text class="s4cH" x="244" y="300" text-anchor="end">Cheapest full catch</text>
+
+        <text class="s4cK" x="272" y="80">0 caught, 12 ship</text>
+        <text class="s4cK" x="274" y="124">7 caught</text>
+        <text class="s4cK" x="274" y="168">8 caught</text>
+        <text class="s4cK" x="274" y="212">12 caught</text>
+        <text class="s4cK" x="274" y="256">12 caught</text>
+        <text class="s4cK" x="274" y="300">12 caught, 6 tests</text>
+
+        <text class="s4cL" x="660" y="80">1</text>
+        <text class="s4cL" x="660" y="124">5</text>
+        <text class="s4cL" x="660" y="168">7</text>
+        <text class="s4cL" x="660" y="212">29</text>
+        <text class="s4cL" x="660" y="256">79</text>
+        <text class="s4cH" x="660" y="300">10</text>
+
+        <text class="s4cS" x="700" y="256">adds cost, no catch</text>
+        <text class="s4cN" x="30" y="330">Normal thresholds, no false alarm on any rung. Hatched: some bugs still ship.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - full coverage first arrives with the data checks at 29 units; the search finds the same coverage for 10</figcaption>
+    </figure>
+
+    <details class="card">
+      <summary><span class="mode live">Live</span>Why those six<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <table class="clean">
+          <tr><th>Test (cost)</th><th>Bugs it covers in the cheapest set</th></tr>
+          <tr><td>u_distance (1)</td><td>silent null coercion, km / miles mismatch</td></tr>
+          <tr><td>u_bucket (1)</td><td>timezone shift, off-by-one hour</td></tr>
+          <tr><td>u_parity (1)</td><td>train/serve skew</td></tr>
+          <tr><td>d_reconcile (3)</td><td>join fan-out, duplicated trips, dropped station, label shift, type coercion</td></tr>
+          <tr><td>d_referential (3)</td><td>stale reference table (and type coercion again)</td></tr>
+          <tr><td>d_split (1)</td><td>target leakage</td></tr>
+        </table>
+        <p>Three cheap unit tests take the four bugs that live inside small functions, plus the skew. The row reconciliation, counting rows from raw to clean to aggregate with its own independent code, is the single most productive test on the bench: five bugs for 3 units. The other two data checks each own one bug nothing else in the set sees. The set is the only one at 10 units; the next cheapest sets cost 11.</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary><span class="mode self">Self-study</span>The cheapest set knows the answers<span class="mini">3 min</span><span class="caret">▶</span></summary>
+      <div class="body">
+        <p>The search had something a real team never has: the list of bugs. It found the cheapest cover for these twelve. Next month's bug is a thirteenth, and the set has no slack for it: leakage and the stale table are each caught by exactly one test in it. The seven tests the search dropped are not useless; several are the second line on bugs the set already covers, and the behaviour tests are the only ones that read the model's predictions at all.</p>
+        <p>So read the result as a floor, not a plan. "Every bug class we know about is caught by at least one cheap test" is the minimum; how much redundancy to buy on top, and where to run it, is the strategy question session 6 answers with a runtime budget.</p>
+      </div>
+    </details>
+
+    <div class="callout example">
+      <span class="ex-pill">Real world</span>
+      <p><strong>Every test the same weight, on purpose.</strong> The ML Test Score gives each of its 28 tests the same points, half for running it by hand with the results written down, a full point for running it automatically. The authors say this is intentional, because the relative importance of tests varies by team. The bench takes the opposite route for one pipeline: it measures what each test catches and what it costs, which is only possible once you have named the bugs.</p>
+    </div>
+  </section>
+
+  <section class="section" id="demo-1">
+    <div class="section-kicker">
+      <span class="klabel">Build-along</span>
+      <h2>Run the ladder on the bench</h2>
+      <span class="tag demo">★ 22 min · everyone builds</span>
+    </div>
+    <p class="lede">The bench below is the real thing (Constructed Wrenfold example, real HSL trips). The first press of a preset takes a second or two: it runs the clean pipeline and all twelve buggy ones, with every test. After that, toggling a test only re-reads the matrix. Every number in the steps is one the widget prints; check each as you go.</p>
+
+    <figure class="zoomable">
+      <svg viewBox="0 0 880 270" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="How the bench computes the matrix. The real trips, loaded twice as the file carries them, feed thirteen pipeline runs: one clean and one for each of the twelve bugs. Each run produces cleaned rows, counts, a fitted model and forecasts. Each enabled test runs against each run's output and marks the cell caught when it fails. Invariance and directional tests each re-run the pipeline again on a changed input: the file loaded a second time, or station 030's trips removed.">
+        <defs>
+          <filter id="s4dSk" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="43" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+          <pattern id="s4dHc" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(-38)"><line x1="0" y1="0" x2="0" y2="7" stroke="#804F00" stroke-width="1" opacity=".5"/></pattern>
+          <marker id="s4dAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A1F12" stroke-width="1.6" stroke-linecap="round"/></marker>
+        </defs>
+        <style>
+          .s4dH { font: 800 12px Inter, sans-serif; fill: #2A1F12; }
+          .s4dL { font: 600 11px Inter, sans-serif; fill: #2A1F12; }
+          .s4dS { font: 400 11px Inter, sans-serif; fill: #5E5243; }
+          .s4dN { font: 400 12px Inter, sans-serif; fill: #5E5243; }
+        </style>
+
+        <g filter="url(#s4dSk)" fill="none" stroke="#2A1F12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="30" y="60" width="170" height="80" rx="10" transform="rotate(-0.6 115 100)" fill="url(#s4dHc)"/>
+          <path d="M202 100 L236 100" marker-end="url(#s4dAr)"/>
+          <rect x="242" y="80" width="22" height="40" rx="4" fill="#FFFFFF"/>
+          <rect x="270" y="80" width="22" height="40" rx="4" fill="#FBF3E4"/>
+          <rect x="298" y="80" width="22" height="40" rx="4" fill="#FBF3E4"/>
+          <rect x="326" y="80" width="22" height="40" rx="4" fill="#FBF3E4"/>
+          <rect x="354" y="80" width="22" height="40" rx="4" fill="#FBF3E4"/>
+          <rect x="382" y="80" width="22" height="40" rx="4" fill="#FBF3E4"/>
+          <rect x="410" y="80" width="22" height="40" rx="4" fill="#FBF3E4"/>
+          <rect x="438" y="80" width="22" height="40" rx="4" fill="#FBF3E4"/>
+          <rect x="466" y="80" width="22" height="40" rx="4" fill="#FBF3E4"/>
+          <rect x="494" y="80" width="22" height="40" rx="4" fill="#FBF3E4"/>
+          <rect x="522" y="80" width="22" height="40" rx="4" fill="#FBF3E4"/>
+          <rect x="550" y="80" width="22" height="40" rx="4" fill="#FBF3E4"/>
+          <rect x="578" y="80" width="22" height="40" rx="4" fill="#FBF3E4"/>
+          <path d="M606 100 L640 100" marker-end="url(#s4dAr)"/>
+          <rect x="646" y="56" width="204" height="88" rx="10" transform="rotate(0.6 748 100)" fill="#7DD3C6"/>
+          <path d="M420 128 L420 168" marker-end="url(#s4dAr)"/>
+          <rect x="250" y="174" width="160" height="48" rx="10" transform="rotate(-0.8 330 198)" fill="#FFFFFF"/>
+          <rect x="432" y="174" width="160" height="48" rx="10" transform="rotate(0.8 512 198)" fill="#FFFFFF"/>
+        </g>
+
+        <text class="s4dH" x="44" y="88">Real trips</text>
+        <text class="s4dS" x="44" y="106">13,810 distinct rows,</text>
+        <text class="s4dS" x="44" y="122">loaded twice as published</text>
+
+        <text class="s4dS" x="421" y="70" text-anchor="middle">13 runs: 1 clean (white) + 12 bugs</text>
+
+        <text class="s4dH" x="660" y="84">17 tests per run</text>
+        <text class="s4dL" x="660" y="104">fail = caught on a bug run,</text>
+        <text class="s4dL" x="660" y="120">false alarm on the clean run</text>
+
+        <text class="s4dL" x="264" y="194">Invariance re-run</text>
+        <text class="s4dS" x="264" y="210">the file loaded again</text>
+        <text class="s4dL" x="446" y="194">Directional re-run</text>
+        <text class="s4dS" x="446" y="210">station 030 removed</text>
+
+        <text class="s4dN" x="30" y="256">Each run does all six stages for real: load, clean, join, aggregate, fit, serve.</text>
+      </svg>
+      <figcaption>🔍 Click to zoom - thirteen real runs and two variant re-runs per run; no cell is looked up, every one is a test that ran</figcaption>
+    </figure>
+
+    <div class="tdm-bench" data-mode="full" data-rung="as_found"></div>
+
+    <div class="steps">
+      <div class="step">
+        <p><strong>Start at "As found".</strong> One test, the smoke test, 1 unit. The headline reads 12 of 12 bugs ship. Scan the matrix: the smoke column passes in every row.</p>
+      </div>
+      <div class="step">
+        <p><strong>Press "+ unit tests".</strong> 7 caught, 5 cost units. Read which five still ship and write them down next to your session 1 guesses.</p>
+        <div class="prompt-box good"><span class="label">★ Step 2 · the rung, as the bench prints it</span>+ unit tests      7 caught   5 ship   0 false alarms   5 units
+ships: join fan-out, duplicated trips, target leakage,
+       type coercion, stale reference table</div>
+      </div>
+      <div class="step">
+        <p><strong>Press "+ schema", then "+ data checks", then "+ behaviour tests".</strong> Record the three numbers for each rung. Schema adds type coercion (8 caught, 7 units). The data checks close every row (12 caught, 29 units). The behaviour tests add no catch and 50 more units (12 caught, 79 units).</p>
+      </div>
+      <div class="step">
+        <p><strong>Press "Tighten thresholds" with all seventeen on.</strong> Still 12 caught, now 3 false alarms. Find the three noisy cells in the clean row: d_dist_drift, d_hour_drift and m_holdout. Press it again to go back to normal.</p>
+      </div>
+      <div class="step">
+        <p><strong>Press "Only unit tests".</strong> 4 units, 7 caught, the same five ship. Then press "Cheapest full catch" and read the six tests it switches on: 12 caught, 0 false alarms, 10 units.</p>
+        <div class="prompt-box good"><span class="label">★ Step 5 · Wrenfold's test plan, page four (constructed)</span>CHEAPEST FULL CATCH, measured on 12 known bugs, normal thresholds
+u_distance      1   null coercion, km / miles
+u_bucket        1   timezone, off-by-one hour
+u_parity        1   train/serve skew
+d_reconcile     3   fan-out, duplicates, dropped station, label shift, type coercion
+d_referential   3   stale reference table
+d_split         1   target leakage
+total          10   units per run   (all 17 tests: 79)</div>
+      </div>
+      <div class="step">
+        <p><strong>Score your session 1 inventory.</strong> For each of the twelve rows, did your guessed test appear in that bug's row of the matrix? Count your hits. Then turn off one test of the cheapest six at a time and watch which bug starts to ship: that is the single point of failure each test is carrying.</p>
+      </div>
+    </div>
+
+    <div class="callout tip">
+      <p><strong>Check the clean row before you trust a column.</strong> A test that fails on the clean pipeline marks every bug as caught and means nothing. Before reading any column as coverage, read its clean-row cell.</p>
+    </div>
+  </section>
+
+  <section class="section" id="exercise">
+    <div class="section-kicker">
+      <span class="klabel">Homework</span>
+      <h2>Before session 5</h2>
+      <span class="tag exercise">30 min</span>
+    </div>
+    <ol>
+      <li><strong>Find a second set that catches all twelve with no false alarm</strong> using no unit test at all. Write its cost and compare it with 10.</li>
+      <li><strong>Find every bug caught by exactly one test</strong> when all seventeen are on. Those are the rows a single deleted test would open.</li>
+      <li><strong>Draw the catch matrix for your own pipeline</strong> from your session 1 inventory: five bugs, the tests you run today, a mark where you believe a test would fail. Circle the rows with no mark.</li>
+      <li><strong>Pick one distribution check you run, or would run,</strong> and write down the value it shows on a known-good batch. If you cannot, its threshold is a guess.</li>
+    </ol>
+  </section>
+
+  <section class="section" id="quiz">
+    <div class="section-kicker">
+      <span class="klabel">Check yourself</span>
+      <h2>Three questions</h2>
+    </div>
+    <p>Clear all three and session 4 gets stamped in your passport.</p>
+
+    <div class="quiz-q" data-answer="2">
+      <p class="qtext">1 · With "Tighten thresholds" on, the hour-profile check marks every one of the twelve bugs as caught. Why is that not good coverage?</p>
+      <button class="qopt" type="button">A · Because the check is too expensive at 5 units</button>
+      <button class="qopt" type="button">B · Because hour profiles are not a real property of trips</button>
+      <button class="qopt" type="button">C · Because it also fails on the clean pipeline: the clean month sits at 0.0415, above the tight bar of 0.02, so it fails every run and tells you nothing about any bug</button>
+      <button class="qopt" type="button">D · Because the bench computes it differently under tight thresholds</button>
+      <p class="qwhy">A test that always fails is a false alarm, not a catch. Read the clean-row cell of a column before you count it as coverage.</p>
+    </div>
+
+    <div class="quiz-q" data-answer="0">
+      <p class="qtext">2 · The four unit tests catch 7 bugs and let 5 ship. What do the five have in common?</p>
+      <button class="qopt" type="button">A · None of them is in a function the fixtures call: they live in the source data, a join to a table the fixtures never contain, how the loader reads a column, or which days the model is fitted on</button>
+      <button class="qopt" type="button">B · They are all model bugs</button>
+      <button class="qopt" type="button">C · They only happen at weekends</button>
+      <button class="qopt" type="button">D · Unit tests could catch them with more parametrize cases</button>
+      <p class="qwhy">A unit test reads the code it calls on the rows you wrote. The doubled source file and the stale station table are not in your code at all; the data checks read the real rows and see them.</p>
+    </div>
+
+    <div class="quiz-q" data-answer="3">
+      <p class="qtext">3 · The cheapest full catch is six tests for 10 units, against 79 units for all seventeen. What is the honest way to use that result?</p>
+      <button class="qopt" type="button">A · Delete the other eleven tests; they catch nothing</button>
+      <button class="qopt" type="button">B · Treat 10 units as the cost of testing any pipeline</button>
+      <button class="qopt" type="button">C · Ignore it, because cost units are modelled</button>
+      <button class="qopt" type="button">D · As a floor: every known bug class is caught cheaply, but the search knew the twelve bugs in advance, so how much redundancy to add for the next unknown bug is a separate decision</button>
+      <p class="qwhy">The search optimised for twelve bugs it was given. Leakage and the stale table each hang on one test in the set. Session 6 decides what to add, and when each test runs.</p>
+    </div>
+
+    <p class="quiz-score"></p>
+  </section>
+
+  <section class="section" id="official">
+    <div class="section-kicker">
+      <span class="klabel">Sources covered</span>
+      <h2>What this session teaches, and where it came from</h2>
+    </div>
+    <div class="covered">
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">HSL city bike trips and stations</span><span class="note">CC BY 4.0, data owned by City Bike Finland; downloaded and counted: rows doubled in the May 2021 file, three trip station ids missing from the station table</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">The bench canon</span><span class="note">Computed by the in-page engine; a Python twin agrees on every number and a planted 0.1% fault makes the comparison fail</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">Rules of Machine Learning, Rule 10</span><span class="note">Zinkevich, Google for Developers: the 90% to 60% feature coverage example; read at source</span></div>
+      <div class="covered-row"><span class="status pill solid">✓</span><span class="name">The ML Test Score scoring</span><span class="note">Breck et al. 2017: equal points per test, half manual, full automated, by design; read at source</span></div>
+      <div class="covered-row"><span class="status pill light">◐</span><span class="name">Mutation testing</span><span class="note">Named and linked only; taught in Learn AI QA session 4</span></div>
+      <div class="covered-row"><span class="status pill light">◐</span><span class="name">Cost units</span><span class="note">Modelled for teaching, not timed; the ordering (unit cheapest, full re-runs dearest) is what to trust</span></div>
+    </div>
+    <p class="mono" style="margin-top:14px">Every fact on this page, and its verification tier, is recorded in the course's source map.</p>
+  </section>
+
+  <section class="cheat" id="cheatsheet">
+    <h3>Session 4 cheat sheet <span>· pin this</span></h3>
+    <div class="grid-2">
+      <div class="cheat-item"><b>Catch matrix</b><span>Rows are bugs, columns are tests, a cell is caught when the test fails on that bug's output.</span></div>
+      <div class="cheat-item"><b>A bug ships</b><span>Only when its whole row passes. Rows with one caught cell are one deletion from shipping.</span></div>
+      <div class="cheat-item"><b>Read the clean row</b><span>A test that fails with no bug is a false alarm, and it marks every bug caught.</span></div>
+      <div class="cheat-item"><b>Thresholds</b><span>Set between normal variation and real drift. Measure the known-good value first.</span></div>
+      <div class="cheat-item"><b>Reconcile rows</b><span>Raw to clean to aggregate, counted independently: 5 bugs for 3 units on this bench.</span></div>
+      <div class="cheat-item"><b>Cheapest is a floor</b><span>6 tests, 10 units catch the 12 known bugs. Redundancy for the unknown thirteenth is a choice.</span></div>
+    </div>
+  </section>
+
+  <div class="callout next">
+    <span class="nx-pill">Next session</span>
+    <p>The behaviour tests added cost and no catch on this list, and yet they are the only tests that read what the model predicts. Session 5 builds them properly: minimum functionality, invariance and directional tests from CheckList, applied to Wrenfold's demand forecast, and the open argument about how much model testing is worth before a model has earned its keep.</p>
+  </div>
+
+  <footer class="pagefoot">
+    <span>Session 4 of 6 · learn-testing-data-ml-code-with-phoebe · by Phoebe Fu &nbsp;·&nbsp; 📚 <a href="https://phoebefu6.github.io/learn-with-phoebe/">Learn with Phoebe ↗</a></span>
+    <span><a href="03-data-checks.html">← Prev: Data checks</a> &nbsp;·&nbsp; <a href="05-model-behaviour-tests.html">Next: Model behaviour tests →</a></span>
+  </footer>
+
+</main>
+
+<script src="../assets/tdm-sample.js?v=1"></script>
+<script src="../assets/tdm-live.js?v=1"></script>
+<script src="../assets/app.js?v=1"></script>
+</body>
+</html>
